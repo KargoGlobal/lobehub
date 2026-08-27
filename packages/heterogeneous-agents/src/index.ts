@@ -12,6 +12,7 @@ export {
   CLAUDE_CODE_API_LOCAL_ONLY_ERROR,
   HETEROGENEOUS_PROVIDER_BINDING_LOCAL_ONLY_ERROR,
   HETEROGENEOUS_PROVIDER_BINDING_PERSONAL_ONLY_ERROR,
+  normalizeAnthropicSdkBaseURL,
   sanitizeClaudeCodeDirectArgs,
   sanitizeClaudeCodeDirectEnv,
 } from './claudeCodeDirectEnv';
@@ -76,12 +77,15 @@ export { getHeterogeneousTypeLabel, HETEROGENEOUS_TYPE_LABELS } from './labels';
 export type {
   CreateAssistantIntent,
   MainAgentIntent,
+  MainAgentInterventionState,
+  MainAgentInterventionTransition,
   MainAgentReduceCtx,
   MainAgentRunState,
   MainAgentTurnToolState,
   MainPersistToolBatchIntent,
   MainRecordUsageIntent,
   MainResolveToolResultIntent,
+  MainSetToolInterventionIntent,
   MainStreamContentIntent,
   MainUpdateToolStateIntent,
   PersistAssistantIntent,

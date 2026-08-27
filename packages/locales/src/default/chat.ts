@@ -341,7 +341,6 @@ export default {
     'On current pace this window ends around {{percent}}%',
   'heteroAgent.claudeQuota.calendar.burnout.willExhaust':
     'On current pace, quota runs out around {{time}}',
-  'heteroAgent.claudeQuota.calendar.capacityUsed': 'Capacity used',
   'heteroAgent.claudeQuota.calendar.dayShare': 'Used {{percent}}% of this window',
   'heteroAgent.claudeQuota.calendar.dayTokens': '{{tokens}} tokens · {{cost}}',
   'heteroAgent.claudeQuota.calendar.accountUnavailable':
@@ -359,6 +358,7 @@ export default {
     'Token history is only recorded for runs started in LobeHub after usage tracking was enabled. Earlier usage and runs started directly from the terminal cannot be backfilled.',
   'heteroAgent.claudeQuota.calendar.noLedgerSpendShort': 'History not recorded',
   'heteroAgent.claudeQuota.calendar.partialCost': 'at least {{cost}}',
+  'heteroAgent.claudeQuota.calendar.partialCostCompact': '{{cost}}+',
   'heteroAgent.claudeQuota.calendar.pace': 'Even pace',
   'heteroAgent.claudeQuota.calendar.pastWindow': 'Last observed window',
   'heteroAgent.claudeQuota.calendar.rateLimited': 'Rate limited',
@@ -422,6 +422,9 @@ export default {
   'heteroAgent.claudeSdkRuntime.state.starting': 'SDK starting',
   'heteroAgent.claudeSdkRuntime.tooltip': '{{state}}. Active background tasks: {{count}}.',
   'heteroAgent.codexQuota.doesNotExpire': 'Does not expire',
+  'heteroAgent.codexQuota.errorConnection':
+    "Couldn't reach the Codex quota endpoint. Check your network or LobeHub proxy settings.",
+  'heteroAgent.codexQuota.errorGeneric': "Couldn't load Codex quota. Try again later.",
   'heteroAgent.codexQuota.expiresIn': 'Expires in {{duration}}',
   'heteroAgent.codexQuota.expiresSoon': 'Expires soon',
   'heteroAgent.codexQuota.fiveHour': '5-hour',
@@ -627,6 +630,11 @@ export default {
   'input.inputCompletionError.title': 'Input suggestions paused',
   'input.modelFixedTip':
     'The model is fixed in the Agent Profile and cannot be switched while chatting.',
+  'input.modelDisabled': 'The current model is disabled',
+  'input.modelDisabled.action': 'Enable',
+  'input.modelDisabled.actionFailed': 'Failed to enable the model. Please try again.',
+  'input.modelDisabled.selectionFailed':
+    'The model was enabled, but switching providers failed. Select it again to continue.',
   'input.modelUnavailable':
     'The current model is no longer available. Choose another model to continue.',
   'input.viewOnlyAgent': 'You can only view this agent',
@@ -1392,6 +1400,8 @@ export default {
   'taskSchedule.every': 'Every',
   'taskSchedule.frequency': 'Frequency',
   'taskSchedule.heading': 'Automation',
+  'taskSchedule.memberAssigneeHint':
+    'Enabling automation unassigns the current member — automated tasks run through an agent.',
   'taskSchedule.hours': 'Hours',
   'taskSchedule.intervalLabel': 'Run interval',
   'taskSchedule.intervalSuffix': 'each time',
@@ -1669,6 +1679,8 @@ export default {
   'createTask.visibility.helperPrivate': 'Only you can see this task.',
   'createTask.visibility.helperWorkspace': 'Everyone in this workspace can see this task.',
   'createTask.visibility.label': 'Visibility',
+  'createTask.visibility.memberAssigneeLocked':
+    'A task assigned to a member stays visible to the workspace.',
   'createTask.visibility.privateAgentDisabled':
     'Private agents can only run private tasks. Pick a workspace agent or switch this task to Private.',
   'createTask.visibility.privateAgentLocked': 'Private agents can only run private tasks.',
@@ -1831,8 +1843,10 @@ export default {
   'taskList.title': 'Tasks',
   'taskList.unassigned': 'Unassigned',
   'taskList.unassignedHint': 'Lobe AI will run this task when no assignee is set',
-  'taskList.assigneeSearch.empty': 'No matching agent',
-  'taskList.assigneeSearch.placeholder': 'Search agent...',
+  'taskList.assigneeSearch.empty': 'No matching assignee',
+  'taskList.assigneeSearch.placeholder': 'Search member or agent...',
+  'taskList.assigneeSelector.agentGroup': 'Agents',
+  'taskList.assigneeSelector.memberGroup': 'Members',
   'taskList.contextMenu.copyConfirm': 'Copy',
   'taskList.contextMenu.copyDescription':
     'Clone this task (and all its subtasks) into another workspace. Status resets to backlog.',

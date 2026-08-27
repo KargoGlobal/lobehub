@@ -10,7 +10,11 @@ import type {
 
 import { HETERO_AGENT_BINDINGS_DIR, HETERO_AGENT_RUNS_DIR } from '@/const/heteroAgent';
 
-import type { HeterogeneousAgentDriver, ProviderBindingFilePlan } from './types';
+import type {
+  HeterogeneousAgentDriver,
+  ProviderBindingFilePlan,
+  ProviderBindingPlan,
+} from './types';
 
 const DIRECTORY_MODE = 0o700;
 const FILE_MODE = 0o600;
@@ -55,6 +59,25 @@ const writeManagedFiles = async (
   }
 };
 
+const cleanupBindingRun = async (
+  runDir: string,
+  plan: ProviderBindingPlan | undefined,
+): Promise<void> => {
+  try {
+    await plan?.cleanup?.();
+  } finally {
+    await rm(runDir, { force: true, recursive: true });
+  }
+};
+
+const cleanupBindingRunSync = (runDir: string, plan: ProviderBindingPlan | undefined): void => {
+  try {
+    plan?.cleanupSync?.();
+  } finally {
+    rmSync(runDir, { force: true, recursive: true });
+  }
+};
+
 export interface HostedProviderBinding {
   args: string[];
   bindingKey: string;
@@ -79,15 +102,21 @@ export const prepareHostedProviderBinding = async (params: {
     throw new Error(`${params.agentType} does not implement LobeHub Provider binding.`);
   }
 
+  // Pi persists its custom model definition in the reusable profile. Include
+  // the selected upstream model so concurrent sessions cannot overwrite one
+  // another's models.json or strand a resumable session without its model.
+  // Other drivers retain their v1 identity and existing resume keys.
+  const identityVersion = params.agentType === 'pi' ? 'v2' : 'v1';
   const identity = [
-    'v1',
+    identityVersion,
     params.agentType,
     params.reference.apiConfig.providerId,
     params.resolution.protocol,
     params.resolution.endpoint ?? '',
+    ...(params.agentType === 'pi' ? [params.resolution.apiConfig.model] : []),
   ].join('\0');
   const digest = hash(identity);
-  const bindingKey = `provider-binding:v1:${digest}`;
+  const bindingKey = `provider-binding:${identityVersion}:${digest}`;
   const profileDir = path.join(
     params.appStoragePath,
     HETERO_AGENT_BINDINGS_DIR,
@@ -106,8 +135,9 @@ export const prepareHostedProviderBinding = async (params: {
     mode: FILE_MODE,
   });
 
+  let plan: ProviderBindingPlan | undefined;
   try {
-    const plan = await params.driver.prepareProviderBinding({
+    plan = await params.driver.prepareProviderBinding({
       args: params.args,
       env: params.env,
       profileDir,
@@ -121,14 +151,14 @@ export const prepareHostedProviderBinding = async (params: {
     return {
       args: plan.args,
       bindingKey,
-      cleanup: () => rm(runDir, { force: true, recursive: true }),
-      cleanupSync: () => rmSync(runDir, { force: true, recursive: true }),
+      cleanup: () => cleanupBindingRun(runDir, plan),
+      cleanupSync: () => cleanupBindingRunSync(runDir, plan),
       env: plan.env,
       profileDir,
       runDir,
     };
   } catch (error) {
-    await rm(runDir, { force: true, recursive: true });
+    await cleanupBindingRun(runDir, plan);
     throw error;
   }
 };
@@ -168,8 +198,9 @@ export const prepareHostedServerDefaultBinding = async (params: {
     encoding: 'utf8',
     mode: FILE_MODE,
   });
+  let plan: ProviderBindingPlan | undefined;
   try {
-    const plan = await params.driver.prepareServerDefaultBinding({
+    plan = await params.driver.prepareServerDefaultBinding({
       args: params.args,
       endpoint: params.endpoint,
       env: params.env,
@@ -181,14 +212,14 @@ export const prepareHostedServerDefaultBinding = async (params: {
     return {
       args: plan.args,
       bindingKey: `server-default:v2:${digest}`,
-      cleanup: () => rm(runDir, { force: true, recursive: true }),
-      cleanupSync: () => rmSync(runDir, { force: true, recursive: true }),
+      cleanup: () => cleanupBindingRun(runDir, plan),
+      cleanupSync: () => cleanupBindingRunSync(runDir, plan),
       env: plan.env,
       profileDir,
       runDir,
     };
   } catch (error) {
-    await rm(runDir, { force: true, recursive: true });
+    await cleanupBindingRun(runDir, plan);
     throw error;
   }
 };
@@ -203,10 +234,12 @@ const statMtimeMs = async (target: string): Promise<number | undefined> => {
 
 /**
  * Remove binding profiles that have not been used for `maxAgeMs` (default 30
- * days). Stable profiles are keyed by `(agentType, providerId, protocol,
- * endpoint)` and are never cleaned by the per-run cleanup, so deleting a
- * provider, changing its endpoint, or bumping the identity version would
- * otherwise strand them (with transcripts inside) forever.
+ * days). Stable profiles are normally keyed by `(agentType, providerId,
+ * protocol, endpoint)`; Pi profiles additionally include the model because
+ * models.json contains a model-specific catalog entry. Profiles are never
+ * cleaned by the per-run cleanup, so deleting a provider, changing its
+ * endpoint, or bumping the identity version would otherwise strand them (with
+ * transcripts inside) forever.
  *
  * Profiles are considered used when `prepareHostedProviderBinding` or
  * `prepareHostedServerDefaultBinding` touches their marker at session start;

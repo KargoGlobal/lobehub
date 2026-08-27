@@ -3,8 +3,8 @@
 import type { CreateGoalParams, GoalCriterionDraft } from '@lobechat/builtin-tool-task';
 import { DEFAULT_GOAL_MAX_ROUNDS } from '@lobechat/const/verify';
 import { useEditor } from '@lobehub/editor/react';
-import { ActionIcon, Flexbox, Icon, Text } from '@lobehub/ui';
-import { Button, toast, useModalContext } from '@lobehub/ui/base-ui';
+import { Flexbox, Icon } from '@lobehub/ui';
+import { ActionIcon, Button, Text, toast, useModalContext } from '@lobehub/ui/base-ui';
 import { InputNumber } from 'antd';
 import { createGlobalStyle, createStaticStyles, cssVar } from 'antd-style';
 import {
@@ -22,17 +22,17 @@ import { useTranslation } from 'react-i18next';
 
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import NeuralNetworkLoading from '@/components/NeuralNetworkLoading';
-import TaskVisibilityChipLabel from '@/features/AgentTasks/features/TaskVisibilityChipLabel';
-import TaskVisibilityTag from '@/features/AgentTasks/features/TaskVisibilityTag';
-import { useAgentVisibility } from '@/features/AgentTasks/shared/useAgentVisibility';
-import { EditorCanvas } from '@/features/EditorCanvas';
-import { pickAndInsertAttachments } from '@/features/EditorCanvas/editorAttachments';
 import {
   CriterionList,
   CriterionRequiredChip,
   CriterionRow,
   openCriterionEditModal,
-} from '@/features/Verify';
+} from '@/features/Acceptance';
+import TaskVisibilityChipLabel from '@/features/AgentTasks/features/TaskVisibilityChipLabel';
+import TaskVisibilityTag from '@/features/AgentTasks/features/TaskVisibilityTag';
+import { useAgentVisibility } from '@/features/AgentTasks/shared/useAgentVisibility';
+import { EditorCanvas } from '@/features/EditorCanvas';
+import { pickAndInsertAttachments } from '@/features/EditorCanvas/editorAttachments';
 import { usePermission } from '@/hooks/usePermission';
 import { verifyService } from '@/services/verify';
 import { useTaskStore } from '@/store/task';
