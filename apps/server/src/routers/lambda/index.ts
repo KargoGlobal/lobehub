@@ -30,6 +30,7 @@ import { agentGroupRouter } from './agentGroup';
 import { agentLabelRouter } from './agentLabel';
 import { agentNotifyRouter } from './agentNotify';
 import { agentQuotaRouter } from './agentQuota';
+import { agentShareRouter } from './agentShare';
 import { agentSignalRouter } from './agentSignal';
 import { agentSkillsRouter } from './agentSkills';
 import { agentTraceRouter } from './agentTrace';
@@ -118,6 +119,7 @@ export const lambdaRouter = router({
   aiChat: aiChatRouter,
   aiModel: aiModelRouter,
   agentQuota: agentQuotaRouter,
+  agentShare: agentShareRouter,
   aiProvider: aiProviderRouter,
   apiKey: apiKeyRouter,
   asr: asrRouter,
