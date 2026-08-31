@@ -36,6 +36,7 @@ import RouteSegmentSkeleton from '@/components/Skeleton/RouteSegment';
 import { createSurfaceSkeleton } from '@/components/Skeleton/Surface';
 import { agentDocumentRouteMeta } from '@/features/AgentDocumentPage/routeMeta';
 import { goalDetailRouteMeta, goalsRouteMeta } from '@/features/AgentGoals/routeMeta';
+import { agentShareVisitorRouteMeta } from '@/features/AgentShareVisitor/routeMeta';
 import { taskRouteMeta, tasksRouteMeta } from '@/features/AgentTasks/routeMeta';
 import { agentsRouteMeta } from '@/features/AgentViewAll/routeMeta';
 import { pageRouteMeta } from '@/features/Pages/routeMeta';
@@ -1504,6 +1505,17 @@ export const createSharedDesktopRoutes = ({
     }),
     errorElement: <ErrorBoundary />,
     path: '/',
+  },
+  {
+    // Agent-share visitor surface: a trimmed, standalone chat shell mounted
+    // outside the main app layout (no workspace sidebar / agent switcher).
+    element: dynamicElement(
+      () => import('@/routes/share/agent/[slugOrId]'),
+      'Desktop > Share > Agent',
+    ),
+    errorElement: <ErrorBoundary />,
+    handle: { meta: agentShareVisitorRouteMeta },
+    path: '/share/agent/:slugOrId',
   },
   ...BusinessDesktopRoutesWithoutMainLayout,
   ...platformRoutes,
