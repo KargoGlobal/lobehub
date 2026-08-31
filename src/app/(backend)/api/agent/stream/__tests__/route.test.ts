@@ -5,10 +5,35 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 
 // Mock dependencies first
-const mockStreamEventManager = {
-  getStreamHistory: vi.fn(),
-  subscribeStreamEvents: vi.fn(),
-};
+const { mockCreateLambdaContext, mockLimit, mockSelect, mockStreamEventManager } = vi.hoisted(
+  () => {
+    const limit = vi.fn();
+    const where = vi.fn(() => ({ limit }));
+    const from = vi.fn(() => ({ where }));
+
+    return {
+      mockCreateLambdaContext: vi.fn(),
+      mockLimit: limit,
+      mockSelect: vi.fn(() => ({ from })),
+      mockStreamEventManager: {
+        getStreamHistory: vi.fn(),
+        subscribeStreamEvents: vi.fn(),
+      },
+    };
+  },
+);
+
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: vi.fn(async () => ({ select: mockSelect })),
+}));
+
+vi.mock('@/database/schemas', () => ({
+  agentOperations: { id: 'id', userId: 'userId', workspaceId: 'workspaceId' },
+}));
+
+vi.mock('@/libs/trpc/lambda/context', () => ({
+  createLambdaContext: mockCreateLambdaContext,
+}));
 
 vi.mock('@/server/modules/AgentRuntime', () => ({
   createStreamEventManager: vi.fn(() => mockStreamEventManager),
@@ -19,6 +44,8 @@ describe('/api/agent/stream route', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    mockCreateLambdaContext.mockResolvedValue({ userId: 'user-1' });
+    mockLimit.mockResolvedValue([{ id: 'test-operation' }]);
     // Mock Date.now to return consistent timestamp
     vi.spyOn(Date, 'now').mockReturnValue(MOCK_TIMESTAMP);
   });
@@ -35,6 +62,32 @@ describe('/api/agent/stream route', () => {
       expect(response.status).toBe(400);
       const data = await response.json();
       expect(data.error).toBe('operationId parameter is required');
+    });
+
+    it('should return 401 when the request is not authenticated', async () => {
+      mockCreateLambdaContext.mockResolvedValue({ userId: null });
+      const request = new NextRequest(
+        'https://test.com/api/agent/stream?operationId=test-operation',
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(401);
+      expect(await response.json()).toEqual({ error: 'Unauthorized' });
+      expect(mockSelect).not.toHaveBeenCalled();
+    });
+
+    it('should hide operations that do not belong to the authenticated user', async () => {
+      mockLimit.mockResolvedValue([]);
+      const request = new NextRequest(
+        'https://test.com/api/agent/stream?operationId=another-users-operation',
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: 'Operation not found' });
+      expect(mockStreamEventManager.subscribeStreamEvents).not.toHaveBeenCalled();
     });
 
     it('should return SSE stream with correct headers when operationId is provided', async () => {
@@ -624,7 +677,7 @@ data: {"type":"stream_end","timestamp":300,"operationId":"test-operation","data"
         },
       );
 
-      const response = await GET(request);
+      await GET(request);
 
       expect(capturedCallback).toBeDefined();
       expect(capturedSignal).toBeDefined();

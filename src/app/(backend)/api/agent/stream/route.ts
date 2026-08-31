@@ -1,8 +1,12 @@
 import { createSSEHeaders, createSSEWriter } from '@lobechat/utils/server';
 import debug from 'debug';
-import { type NextRequest } from 'next/server';
+import { and, eq, isNull } from 'drizzle-orm';
+import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
+import { getServerDB } from '@/database/core/db-adaptor';
+import { agentOperations } from '@/database/schemas';
+import { createLambdaContext } from '@/libs/trpc/lambda/context';
 import { createStreamEventManager } from '@/server/modules/AgentRuntime';
 
 const log = debug('api-route:agent:stream');
@@ -13,9 +17,6 @@ const timing = debug('lobe-server:agent-runtime:timing');
  * Provides real-time Agent execution event stream for clients
  */
 export async function GET(request: NextRequest) {
-  // Initialize stream event manager (uses InMemory singleton in local dev, Redis in production)
-  const streamManager = createStreamEventManager();
-
   const { searchParams } = new URL(request.url);
   const operationId = searchParams.get('operationId');
   const lastEventId = searchParams.get('lastEventId') || '0';
@@ -29,6 +30,38 @@ export async function GET(request: NextRequest) {
       { status: 400 },
     );
   }
+
+  const authContext = await createLambdaContext(request);
+  if (!authContext.userId) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  const serverDB = await getServerDB();
+  const [operation] = await serverDB
+    .select({ id: agentOperations.id })
+    .from(agentOperations)
+    .where(
+      and(
+        eq(agentOperations.id, operationId),
+        eq(agentOperations.userId, authContext.userId),
+        ...(authContext.apiKeyScopes !== undefined
+          ? [
+              authContext.workspaceId
+                ? eq(agentOperations.workspaceId, authContext.workspaceId)
+                : isNull(agentOperations.workspaceId),
+            ]
+          : []),
+      ),
+    )
+    .limit(1);
+
+  // Hide operation existence so a caller cannot probe another user's operation ids.
+  if (!operation) {
+    return NextResponse.json({ error: 'Operation not found' }, { status: 404 });
+  }
+
+  // Initialize stream event manager (uses InMemory singleton in local dev, Redis in production)
+  const streamManager = createStreamEventManager();
 
   log(`Starting SSE connection for operation ${operationId} from eventId ${lastEventId}`);
 
