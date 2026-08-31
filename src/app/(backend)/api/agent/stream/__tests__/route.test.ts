@@ -5,23 +5,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET } from '../route';
 
 // Mock dependencies first
-const { mockCreateLambdaContext, mockLimit, mockSelect, mockStreamEventManager } = vi.hoisted(
-  () => {
-    const limit = vi.fn();
-    const where = vi.fn(() => ({ limit }));
-    const from = vi.fn(() => ({ where }));
+const {
+  mockCreateLambdaContext,
+  mockGetOperationMetadata,
+  mockLimit,
+  mockSelect,
+  mockStreamEventManager,
+} = vi.hoisted(() => {
+  const limit = vi.fn();
+  const where = vi.fn(() => ({ limit }));
+  const from = vi.fn(() => ({ where }));
 
-    return {
-      mockCreateLambdaContext: vi.fn(),
-      mockLimit: limit,
-      mockSelect: vi.fn(() => ({ from })),
-      mockStreamEventManager: {
-        getStreamHistory: vi.fn(),
-        subscribeStreamEvents: vi.fn(),
-      },
-    };
-  },
-);
+  return {
+    mockCreateLambdaContext: vi.fn(),
+    mockGetOperationMetadata: vi.fn(),
+    mockLimit: limit,
+    mockSelect: vi.fn(() => ({ from })),
+    mockStreamEventManager: {
+      getStreamHistory: vi.fn(),
+      subscribeStreamEvents: vi.fn(),
+    },
+  };
+});
 
 vi.mock('@/database/core/db-adaptor', () => ({
   getServerDB: vi.fn(async () => ({ select: mockSelect })),
@@ -36,6 +41,7 @@ vi.mock('@/libs/trpc/lambda/context', () => ({
 }));
 
 vi.mock('@/server/modules/AgentRuntime', () => ({
+  createAgentStateManager: vi.fn(() => ({ getOperationMetadata: mockGetOperationMetadata })),
   createStreamEventManager: vi.fn(() => mockStreamEventManager),
 }));
 
@@ -45,7 +51,8 @@ describe('/api/agent/stream route', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockCreateLambdaContext.mockResolvedValue({ userId: 'user-1' });
-    mockLimit.mockResolvedValue([{ id: 'test-operation' }]);
+    mockGetOperationMetadata.mockResolvedValue(null);
+    mockLimit.mockResolvedValue([{ userId: 'user-1', workspaceId: null }]);
     // Mock Date.now to return consistent timestamp
     vi.spyOn(Date, 'now').mockReturnValue(MOCK_TIMESTAMP);
   });
@@ -78,7 +85,7 @@ describe('/api/agent/stream route', () => {
     });
 
     it('should hide operations that do not belong to the authenticated user', async () => {
-      mockLimit.mockResolvedValue([]);
+      mockLimit.mockResolvedValue([{ userId: 'user-2', workspaceId: null }]);
       const request = new NextRequest(
         'https://test.com/api/agent/stream?operationId=another-users-operation',
       );
@@ -88,6 +95,54 @@ describe('/api/agent/stream route', () => {
       expect(response.status).toBe(404);
       expect(await response.json()).toEqual({ error: 'Operation not found' });
       expect(mockStreamEventManager.subscribeStreamEvents).not.toHaveBeenCalled();
+      expect(mockGetOperationMetadata).not.toHaveBeenCalled();
+    });
+
+    it('should authorize from runtime metadata when the initial operation write failed', async () => {
+      mockLimit.mockResolvedValue([]);
+      mockGetOperationMetadata.mockResolvedValue({ userId: 'user-1', workspaceId: undefined });
+      const request = new NextRequest(
+        'https://test.com/api/agent/stream?operationId=runtime-only-operation',
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get('Content-Type')).toBe('text/event-stream');
+    });
+
+    it('should reject runtime metadata owned by another user', async () => {
+      mockLimit.mockResolvedValue([]);
+      mockGetOperationMetadata.mockResolvedValue({ userId: 'user-2', workspaceId: undefined });
+      const request = new NextRequest(
+        'https://test.com/api/agent/stream?operationId=runtime-only-operation',
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: 'Operation not found' });
+    });
+
+    it('should enforce API key workspace scope for runtime metadata fallback', async () => {
+      mockCreateLambdaContext.mockResolvedValue({
+        apiKeyScopes: null,
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      });
+      mockLimit.mockResolvedValue([]);
+      mockGetOperationMetadata.mockResolvedValue({
+        userId: 'user-1',
+        workspaceId: 'workspace-2',
+      });
+      const request = new NextRequest(
+        'https://test.com/api/agent/stream?operationId=runtime-only-operation',
+      );
+
+      const response = await GET(request);
+
+      expect(response.status).toBe(404);
+      expect(await response.json()).toEqual({ error: 'Operation not found' });
     });
 
     it('should return SSE stream with correct headers when operationId is provided', async () => {

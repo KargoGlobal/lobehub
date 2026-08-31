@@ -1,13 +1,13 @@
 import { createSSEHeaders, createSSEWriter } from '@lobechat/utils/server';
 import debug from 'debug';
-import { and, eq, isNull } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 
 import { getServerDB } from '@/database/core/db-adaptor';
 import { agentOperations } from '@/database/schemas';
 import { createLambdaContext } from '@/libs/trpc/lambda/context';
-import { createStreamEventManager } from '@/server/modules/AgentRuntime';
+import { createAgentStateManager, createStreamEventManager } from '@/server/modules/AgentRuntime';
 
 const log = debug('api-route:agent:stream');
 const timing = debug('lobe-server:agent-runtime:timing');
@@ -37,26 +37,25 @@ export async function GET(request: NextRequest) {
   }
 
   const serverDB = await getServerDB();
-  const [operation] = await serverDB
-    .select({ id: agentOperations.id })
+  const [persistedOperation] = await serverDB
+    .select({
+      userId: agentOperations.userId,
+      workspaceId: agentOperations.workspaceId,
+    })
     .from(agentOperations)
-    .where(
-      and(
-        eq(agentOperations.id, operationId),
-        eq(agentOperations.userId, authContext.userId),
-        ...(authContext.apiKeyScopes !== undefined
-          ? [
-              authContext.workspaceId
-                ? eq(agentOperations.workspaceId, authContext.workspaceId)
-                : isNull(agentOperations.workspaceId),
-            ]
-          : []),
-      ),
-    )
+    .where(eq(agentOperations.id, operationId))
     .limit(1);
 
+  // A normal run intentionally survives a failed initial agent_operations write. In that case,
+  // runtime metadata remains the authoritative ownership record for the live operation.
+  const operationOwner =
+    persistedOperation ?? (await createAgentStateManager().getOperationMetadata(operationId));
+  const workspaceMatchesApiKey =
+    authContext.apiKeyScopes === undefined ||
+    (operationOwner?.workspaceId ?? null) === (authContext.workspaceId ?? null);
+
   // Hide operation existence so a caller cannot probe another user's operation ids.
-  if (!operation) {
+  if (operationOwner?.userId !== authContext.userId || !workspaceMatchesApiKey) {
     return NextResponse.json({ error: 'Operation not found' }, { status: 404 });
   }
 
