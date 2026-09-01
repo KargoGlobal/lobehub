@@ -52,6 +52,7 @@ import {
   agentProfileRouteMeta,
   agentRouteMeta,
   agentSelfLearningRouteMeta,
+  agentShareRouteMeta,
   agentStatisticsRouteMeta,
   topicsRouteMeta,
 } from '@/routes/(main)/agent/features/routeMeta';
@@ -221,6 +222,14 @@ export const sharedMainAreaChildren: RouteObject[] = [
             ),
             handle: { meta: agentStatisticsRouteMeta },
             path: 'statistics',
+          },
+          {
+            element: dynamicElement(
+              () => import('@/routes/(main)/agent/share'),
+              'Desktop > Chat > Share',
+            ),
+            handle: { meta: agentShareRouteMeta },
+            path: 'share',
           },
           // Legacy `/agent/:aid/stats` URLs — kept for deep-links.
           {
