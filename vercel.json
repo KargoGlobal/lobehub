@@ -59,5 +59,12 @@
       "source": "/_dangerous_local_dev_proxy/:path*",
       "destination": "/_dangerous_local_dev_proxy.html"
     }
+  ],
+  "redirects": [
+    {
+      "source": "/",
+      "destination": "/image",
+      "permanent": false
+    }
   ]
 }
