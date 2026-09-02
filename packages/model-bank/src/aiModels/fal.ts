@@ -1,5 +1,5 @@
 import type { ModelParamsSchema } from '../standard-parameters';
-import type { AIImageModelCard } from '../types/aiModel';
+import type { AIImageModelCard, AIVideoModelCard } from '../types/aiModel';
 
 export const fluxSchnellParamsSchema: ModelParamsSchema = {
   height: { default: 1024, max: 1536, min: 512, step: 1 },
@@ -58,6 +58,43 @@ export const huanyuanImageParamsSchema: ModelParamsSchema = {
 };
 
 const falImageModels: AIImageModelCard[] = [
+  {
+    description:
+      'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',
+    displayName: 'Nano Banana 2',
+    enabled: true,
+    id: 'fal-ai/nano-banana-2',
+    parameters: {
+      imageUrls: { default: [], maxCount: 10 },
+      prompt: {
+        default: '',
+      },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-06-15',
+    type: 'image',
+  },
+  {
+    description:
+      'OpenAI’s GPT Image 2 model served via fal, with strong prompt adherence, text rendering, and conversational image editing.',
+    displayName: 'GPT Image 2',
+    enabled: true,
+    id: 'openai/gpt-image-2',
+    organization: 'OpenAI',
+    parameters: {
+      imageUrls: { default: [], maxCount: 10 },
+      prompt: {
+        default: '',
+      },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.07, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-05-20',
+    type: 'image',
+  },
   {
     description:
       'Nano Banana is Google’s newest, fastest, and most efficient native multimodal model, enabling image generation and editing through conversation.',
@@ -221,6 +258,51 @@ const falImageModels: AIImageModelCard[] = [
   },
 ];
 
-export const allModels = [...falImageModels];
+const falVideoParamsSchema = {
+  aspectRatio: {
+    default: '16:9',
+    enum: ['16:9', '9:16'],
+  },
+  duration: { default: 8, enum: [4, 6, 8] },
+  prompt: { default: '' },
+  resolution: {
+    default: '720p',
+    enum: ['720p', '1080p', '4k'],
+  },
+  seed: { default: null },
+};
+
+const falVideoModels: AIVideoModelCard[] = [
+  {
+    description:
+      'Google’s Veo 3.1 text-to-video model served via fal: cinematic quality with native audio, ideal for ad-length product and brand clips.',
+    displayName: 'Veo 3.1',
+    enabled: true,
+    id: 'fal-ai/veo3.1',
+    organization: 'Deepmind',
+    parameters: falVideoParamsSchema,
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.4, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-01-13',
+    type: 'video',
+  },
+  {
+    description:
+      'Faster, lower-cost variant of Veo 3.1 served via fal — great for rapid ad concepting and iteration.',
+    displayName: 'Veo 3.1 Fast',
+    enabled: true,
+    id: 'fal-ai/veo3.1/fast',
+    organization: 'Deepmind',
+    parameters: falVideoParamsSchema,
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.15, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-01-13',
+    type: 'video',
+  },
+];
+
+export const allModels = [...falImageModels, ...falVideoModels];
 
 export default allModels;

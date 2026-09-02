@@ -7,12 +7,27 @@ import type { ClientOptions } from 'openai';
 import type { LobeRuntimeAI } from '../../core/BaseAI';
 import { AgentRuntimeErrorType } from '../../types/error';
 import type { CreateImagePayload, CreateImageResponse } from '../../types/image';
+import type {
+  CreateVideoPayload,
+  CreateVideoResponse,
+  PollVideoStatusResult,
+} from '../../types/video';
 import { AgentRuntimeError } from '../../utils/createError';
 import type { ModelIdMappingOptions } from '../../utils/modelIdMapping';
 import { resolveMappedModelId } from '../../utils/modelIdMapping';
 
 // Create debug logger
 const log = debug('lobe-image:fal');
+
+// fal hosts models under vendor namespaces (e.g. `openai/gpt-image-2`); only
+// bare model ids get the default `fal-ai/` prefix.
+const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/'];
+const resolveFalEndpoint = (model: string) =>
+  FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
+
+// inferenceId must round-trip through the async task queue as a single string,
+// but fal's queue API needs both the endpoint and the request id to poll.
+const FAL_INFERENCE_ID_SEPARATOR = '::';
 
 type FluxDevOutput = Awaited<ReturnType<typeof fal.subscribe<'fal-ai/flux/dev'>>>['data'];
 
@@ -78,14 +93,16 @@ export class LobeFalAI implements LobeRuntimeAI {
       defaultInput['acceleration'] = 'high';
     }
 
-    // Ensure model has fal-ai/ prefix
-    let endpoint = requestModel.startsWith('fal-ai/') ? requestModel : `fal-ai/${requestModel}`;
+    let endpoint = resolveFalEndpoint(requestModel);
     const hasImageUrls = (params.imageUrls?.length ?? 0) > 0;
     if (
       ['fal-ai/bytedance/seedream/v', 'fal-ai/hunyuan-image/v'].some((m) => endpoint.startsWith(m))
     ) {
       endpoint += hasImageUrls ? '/edit' : '/text-to-image';
-    } else if (endpoint === 'fal-ai/nano-banana' && hasImageUrls) {
+    } else if (
+      ['fal-ai/nano-banana', 'fal-ai/nano-banana-2', 'openai/gpt-image-2'].includes(endpoint) &&
+      hasImageUrls
+    ) {
       endpoint += '/edit';
     }
 
@@ -130,6 +147,61 @@ export class LobeFalAI implements LobeRuntimeAI {
       }
 
       throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
+    }
+  }
+
+  async createVideo(payload: CreateVideoPayload): Promise<CreateVideoResponse> {
+    const { model, params } = payload;
+    const requestModel = resolveMappedModelId(model, this.modelIdMappingOptions);
+    const endpoint = resolveFalEndpoint(requestModel);
+
+    const input: Record<string, unknown> = { prompt: params.prompt };
+    if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
+    // fal video endpoints take duration as an enum string like "8s"
+    if (params.duration) input.duration = `${params.duration}s`;
+    if (params.resolution) input.resolution = params.resolution;
+    if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+
+    log('Submitting fal video task on endpoint: %s with input: %O', endpoint, input);
+    try {
+      const { request_id } = await fal.queue.submit(endpoint, { input });
+
+      return { inferenceId: `${endpoint}${FAL_INFERENCE_ID_SEPARATOR}${request_id}` };
+    } catch (error) {
+      if (error instanceof Error && 'status' in error && error.status === 401) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.InvalidProviderAPIKey, {
+          error,
+        });
+      }
+
+      throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
+    }
+  }
+
+  async handlePollVideoStatus(inferenceId: string): Promise<PollVideoStatusResult> {
+    const separatorIndex = inferenceId.lastIndexOf(FAL_INFERENCE_ID_SEPARATOR);
+    if (separatorIndex === -1) {
+      return { error: `Invalid fal inference id: ${inferenceId}`, status: 'failed' };
+    }
+    const endpoint = inferenceId.slice(0, separatorIndex);
+    const requestId = inferenceId.slice(separatorIndex + FAL_INFERENCE_ID_SEPARATOR.length);
+
+    try {
+      const status = await fal.queue.status(endpoint, { logs: false, requestId });
+      log('fal video task %s status: %s', requestId, status.status);
+
+      if (status.status !== 'COMPLETED') return { status: 'pending' };
+
+      const { data } = await fal.queue.result(endpoint, { requestId });
+      const videoUrl = (data as { video?: { url?: string } })?.video?.url;
+      if (!videoUrl) {
+        return { error: 'fal returned a completed task without a video url', status: 'failed' };
+      }
+
+      return { status: 'success', videoUrl };
+    } catch (error) {
+      log('fal video task %s poll failed: %O', requestId, error);
+      return { error: error instanceof Error ? error.message : String(error), status: 'failed' };
     }
   }
 }
