@@ -57,7 +57,42 @@ export const huanyuanImageParamsSchema: ModelParamsSchema = {
   steps: { default: 28, max: 50, min: 1, step: 1 },
 };
 
+/**
+ * BiRefNet takes an image and nothing else — there is no prompt to write. The
+ * two knobs it does expose are mapped onto the standard schema because that
+ * schema is a closed set: `quality` carries fal's `model` variant and
+ * `resolution` carries `operating_resolution`. `packages/model-runtime/src/providers/fal`
+ * translates them back on the way out.
+ */
+export const birefnetParamsSchema: ModelParamsSchema = {
+  imageUrl: { default: null },
+  // Required by ModelParamsMetaSchema on every model, and used downstream for
+  // the topic title and file name. The runtime drops it before calling fal.
+  prompt: { default: '' },
+  quality: {
+    default: 'General Use (Heavy)',
+    enum: ['General Use (Light)', 'General Use (Heavy)', 'Matting', 'Portrait'],
+  },
+  resolution: {
+    default: '2048x2048',
+    enum: ['1024x1024', '2048x2048'],
+  },
+};
+
 const falImageModels: AIImageModelCard[] = [
+  {
+    description:
+      'Removes the background from an image and returns a PNG with a real alpha channel. Upload a flat image, pick a variant, and get a cut-out — no prompt needed. “General Use (Heavy)” is the best all-round choice; “Matting” preserves fine edges like hair and fur; “Portrait” is tuned for people.',
+    displayName: 'BiRefNet v2 (Remove Background)',
+    enabled: true,
+    id: 'fal-ai/birefnet/v2',
+    parameters: birefnetParamsSchema,
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.002, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2024-08-15',
+    type: 'image',
+  },
   {
     description:
       'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',

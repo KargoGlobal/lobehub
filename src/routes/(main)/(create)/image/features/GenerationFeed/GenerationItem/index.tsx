@@ -19,11 +19,18 @@ import { getAspectRatio } from './utils';
 
 const isSupportedParamSelector = imageGenerationConfigSelectors.isSupportedParam;
 
+/**
+ * Offering "remove background" on something that is already a cut-out is noise,
+ * so the action hides itself on this model's own output.
+ */
+const BACKGROUND_REMOVAL_MODEL_ID = 'fal-ai/birefnet/v2';
+
 export const GenerationItem = memo<GenerationItemProps>(
   ({ generationBatch, generation, prompt }) => {
     const { t } = useTranslation('image');
     const useCheckGenerationStatus = useImageStore((s) => s.useCheckGenerationStatus);
     const deleteGeneration = useImageStore((s) => s.removeGeneration);
+    const removeBackground = useImageStore((s) => s.removeBackground);
     const reuseSeed = useImageStore((s) => s.reuseSeed);
     const activeTopicId = useImageStore((s) => s.activeGenerationTopicId);
     const isSupportSeed = useImageStore(isSupportedParamSelector('seed'));
@@ -61,6 +68,19 @@ export const GenerationItem = memo<GenerationItemProps>(
 
       await downloadImage(generation.asset.url, fileName);
     }, [downloadImage, generation.asset?.url, generation.createdAt, prompt]);
+
+    const handleRemoveBackground = useCallback(async () => {
+      if (!generation.asset?.url) return;
+
+      try {
+        await removeBackground(generation.asset.url);
+      } catch (error) {
+        console.error('Failed to remove background:', error);
+        toast.error(
+          error instanceof Error ? error.message : t('generation.actions.removeBackgroundFailed'),
+        );
+      }
+    }, [removeBackground, generation.asset?.url, t]);
 
     const handleCopySeed = useCallback(async () => {
       if (!generation.seed) return;
@@ -116,9 +136,11 @@ export const GenerationItem = memo<GenerationItemProps>(
           generationBatch={generationBatch}
           prompt={prompt}
           seedTooltip={seedTooltip}
+          showRemoveBackground={generationBatch.model !== BACKGROUND_REMOVAL_MODEL_ID}
           onCopySeed={handleCopySeed}
           onDelete={handleDeleteGeneration}
           onDownload={handleDownloadImage}
+          onRemoveBackground={handleRemoveBackground}
         />
       );
     }

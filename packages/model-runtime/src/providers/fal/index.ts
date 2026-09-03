@@ -31,6 +31,14 @@ const FAL_INFERENCE_ID_SEPARATOR = '::';
 
 type FluxDevOutput = Awaited<ReturnType<typeof fal.subscribe<'fal-ai/flux/dev'>>>['data'];
 
+// Background-removal endpoints answer with a single `image`, not `images[]`.
+// Reading `images[0]` off one of these throws before any error handling runs.
+const BACKGROUND_REMOVAL_ENDPOINTS = new Set<string>(['fal-ai/birefnet/v2']);
+
+interface BackgroundRemovalOutput {
+  image?: { height?: number; url: string; width?: number };
+}
+
 export class LobeFalAI implements LobeRuntimeAI {
   private readonly modelIdMappingOptions: ModelIdMappingOptions;
 
@@ -106,17 +114,36 @@ export class LobeFalAI implements LobeRuntimeAI {
       endpoint += '/edit';
     }
 
-    const finalInput = {
-      ...defaultInput,
-      ...userInput,
-    };
+    // Background removal is a different shape of call entirely: it takes an
+    // image and no prompt, rejects the generation-only defaults below, and
+    // answers with a single `image` rather than an `images` array.
+    const isBackgroundRemoval = BACKGROUND_REMOVAL_ENDPOINTS.has(endpoint);
+
+    const finalInput = isBackgroundRemoval
+      ? {
+          image_url: params.imageUrl ?? params.imageUrls?.[0],
+          // A real alpha channel is the entire point, so the format is not
+          // left to the caller — webp/gif would defeat the purpose here.
+          output_format: 'png',
+          refine_foreground: true,
+          ...(params.quality ? { model: params.quality } : {}),
+          ...(params.resolution ? { operating_resolution: params.resolution } : {}),
+        }
+      : {
+          ...defaultInput,
+          ...userInput,
+        };
 
     log('Calling fal.subscribe with endpoint: %s and input: %O', endpoint, finalInput);
     try {
       const { data } = await fal.subscribe(endpoint, {
         input: finalInput,
       });
-      const image = (data as FluxDevOutput).images[0];
+      const image = isBackgroundRemoval
+        ? (data as BackgroundRemovalOutput).image
+        : (data as FluxDevOutput).images[0];
+
+      if (!image?.url) throw new Error('fal returned no image');
 
       return {
         imageUrl: image.url,

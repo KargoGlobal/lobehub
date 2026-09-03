@@ -13,6 +13,8 @@ export default {
   'config.model.label': 'Model',
   'config.promptExtend.label': 'Prompt Extend',
   'config.prompt.placeholder': 'Describe what you want to generate',
+  'config.prompt.placeholderPromptless':
+    'No prompt needed — add an image below and press Generate.',
   'config.prompt.placeholderWithRef': 'Describe how you want to adjust the image',
   'config.quality.label': 'Image Quality',
   'config.quality.options.hd': 'High Definition',
@@ -37,6 +39,9 @@ export default {
   'generation.actions.delete': 'Delete',
   'generation.actions.deleteBatch': 'Delete Batch',
   'generation.actions.download': 'Download',
+  'generation.actions.removeBackground': 'Remove background',
+  'generation.actions.removeBackgroundFailed':
+    'Could not remove the background. Please try again.',
   'generation.actions.downloadFailed':
     'Failed to download image. Please check your network connection or S3 storage CORS configuration.',
   'generation.actions.errorCopied': 'Error Message Copied to Clipboard',

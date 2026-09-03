@@ -5,6 +5,7 @@ import { Flexbox } from '@lobehub/ui';
 import { ActionIcon, Switch, Tabs, Text } from '@lobehub/ui/base-ui';
 import { Divider } from 'antd';
 import { Images } from 'lucide-react';
+import { isPromptlessImageModel } from 'model-bank';
 import { memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -268,6 +269,10 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
 
   const showInlineRef = canDropImage;
   const hasRefImages = imagePreviewUrls.length > 0;
+  // Background removal takes an image and nothing else. Leaving an editable
+  // prompt box here reads as "type something to make this work", which is
+  // exactly the dead end that sent design looking for a feature that wasn't there.
+  const isPromptless = isPromptlessImageModel(currentModel);
   const displayVisibility = activeGenerationTopic
     ? activeGenerationTopic.visibility === 'private'
       ? 'private'
@@ -399,7 +404,11 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
           </Flexbox>
         }
         placeholder={
-          hasRefImages ? t('config.prompt.placeholderWithRef') : t('config.prompt.placeholder')
+          isPromptless
+            ? t('config.prompt.placeholderPromptless')
+            : hasRefImages
+              ? t('config.prompt.placeholderWithRef')
+              : t('config.prompt.placeholder')
         }
         rightActions={
           <>
