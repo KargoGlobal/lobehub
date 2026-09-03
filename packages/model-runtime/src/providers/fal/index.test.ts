@@ -1013,4 +1013,77 @@ describe('LobeFalAI', () => {
       });
     });
   });
+
+  describe('background removal (birefnet)', () => {
+    const birefnetPayload = (params: Record<string, unknown> = {}) =>
+      ({
+        model: 'fal-ai/birefnet/v2',
+        params: { imageUrl: 'https://example.com/flat.jpg', prompt: '', ...params },
+      }) as unknown as CreateImagePayload;
+
+    it('reads the singular `image` field rather than `images[0]`', async () => {
+      // birefnet answers { image }, not { images: [...] } — reading images[0]
+      // here is a TypeError, which is what made this model unusable.
+      mockFal.subscribe.mockResolvedValue({
+        data: { image: { height: 1024, url: 'https://example.com/cut-out.png', width: 768 } },
+        requestId: 'req-1',
+      } as any);
+
+      const result = await instance.createImage(birefnetPayload());
+
+      expect(result).toEqual({
+        height: 1024,
+        imageUrl: 'https://example.com/cut-out.png',
+        width: 768,
+      });
+    });
+
+    it('sends image_url and forces png, and sends no prompt', async () => {
+      mockFal.subscribe.mockResolvedValue({
+        data: { image: { url: 'https://example.com/cut-out.png' } },
+        requestId: 'req-2',
+      } as any);
+
+      await instance.createImage(
+        birefnetPayload({ quality: 'Matting', resolution: '2048x2048' }),
+      );
+
+      const [endpoint, options] = mockFal.subscribe.mock.calls[0];
+      expect(endpoint).toBe('fal-ai/birefnet/v2');
+      expect(options.input).toEqual({
+        image_url: 'https://example.com/flat.jpg',
+        model: 'Matting',
+        operating_resolution: '2048x2048',
+        output_format: 'png',
+        refine_foreground: true,
+      });
+      // Generation-only defaults would be rejected by this endpoint.
+      expect(options.input).not.toHaveProperty('prompt');
+      expect(options.input).not.toHaveProperty('num_images');
+      expect(options.input).not.toHaveProperty('enable_safety_checker');
+    });
+
+    it('falls back to the first imageUrls entry when imageUrl is absent', async () => {
+      mockFal.subscribe.mockResolvedValue({
+        data: { image: { url: 'https://example.com/cut-out.png' } },
+        requestId: 'req-3',
+      } as any);
+
+      await instance.createImage({
+        model: 'fal-ai/birefnet/v2',
+        params: { imageUrls: ['https://example.com/from-list.jpg'], prompt: '' },
+      } as unknown as CreateImagePayload);
+
+      expect(mockFal.subscribe.mock.calls[0][1].input.image_url).toBe(
+        'https://example.com/from-list.jpg',
+      );
+    });
+
+    it('throws a clear error when fal returns no image', async () => {
+      mockFal.subscribe.mockResolvedValue({ data: {}, requestId: 'req-4' } as any);
+
+      await expect(instance.createImage(birefnetPayload())).rejects.toThrow();
+    });
+  });
+
 });

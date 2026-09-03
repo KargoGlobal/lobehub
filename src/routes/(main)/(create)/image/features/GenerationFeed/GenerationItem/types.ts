@@ -10,9 +10,11 @@ export interface ActionButtonsProps {
   onCopySeed?: () => void;
   onDelete: () => void;
   onDownload?: () => void;
+  onRemoveBackground?: () => void;
   seedTooltip?: string;
   showCopySeed?: boolean;
   showDownload?: boolean;
+  showRemoveBackground?: boolean;
 }
 
 export interface SuccessStateProps {
@@ -22,8 +24,10 @@ export interface SuccessStateProps {
   onCopySeed?: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onRemoveBackground?: () => void;
   prompt: string;
   seedTooltip?: string;
+  showRemoveBackground?: boolean;
 }
 
 export interface ErrorStateProps {
