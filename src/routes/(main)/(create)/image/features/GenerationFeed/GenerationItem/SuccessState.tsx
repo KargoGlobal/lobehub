@@ -20,6 +20,8 @@ export const SuccessState = memo<SuccessStateProps>(
     onDelete,
     onDownload,
     onCopySeed,
+    onRemoveBackground,
+    onUpscale,
     seedTooltip,
   }) => {
     return (
@@ -49,6 +51,8 @@ export const SuccessState = memo<SuccessStateProps>(
           onCopySeed={onCopySeed}
           onDelete={onDelete}
           onDownload={onDownload}
+          onRemoveBackground={onRemoveBackground}
+          onUpscale={onUpscale}
         />
       </Block>
     );

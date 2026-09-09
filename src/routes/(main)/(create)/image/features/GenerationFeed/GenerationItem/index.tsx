@@ -24,6 +24,7 @@ export const GenerationItem = memo<GenerationItemProps>(
     const { t } = useTranslation('image');
     const useCheckGenerationStatus = useImageStore((s) => s.useCheckGenerationStatus);
     const deleteGeneration = useImageStore((s) => s.removeGeneration);
+    const createUtilityImage = useImageStore((s) => s.createUtilityImage);
     const reuseSeed = useImageStore((s) => s.reuseSeed);
     const activeTopicId = useImageStore((s) => s.activeGenerationTopicId);
     const isSupportSeed = useImageStore(isSupportedParamSelector('seed'));
@@ -61,6 +62,26 @@ export const GenerationItem = memo<GenerationItemProps>(
 
       await downloadImage(generation.asset.url, fileName);
     }, [downloadImage, generation.asset?.url, generation.createdAt, prompt]);
+
+    const handleRemoveBackground = useCallback(async () => {
+      if (!generation.asset?.url) return;
+      try {
+        await createUtilityImage(generation.asset.url, 'removeBackground');
+      } catch (error) {
+        console.error('Failed to remove background:', error);
+        toast.error(t('generation.actions.removeBackgroundFailed'));
+      }
+    }, [createUtilityImage, generation.asset?.url, t]);
+
+    const handleUpscale = useCallback(async () => {
+      if (!generation.asset?.url) return;
+      try {
+        await createUtilityImage(generation.asset.url, 'upscale');
+      } catch (error) {
+        console.error('Failed to upscale image:', error);
+        toast.error(t('generation.actions.upscaleFailed'));
+      }
+    }, [createUtilityImage, generation.asset?.url, t]);
 
     const handleCopySeed = useCallback(async () => {
       if (!generation.seed) return;
@@ -119,6 +140,8 @@ export const GenerationItem = memo<GenerationItemProps>(
           onCopySeed={handleCopySeed}
           onDelete={handleDeleteGeneration}
           onDownload={handleDownloadImage}
+          onRemoveBackground={handleRemoveBackground}
+          onUpscale={handleUpscale}
         />
       );
     }

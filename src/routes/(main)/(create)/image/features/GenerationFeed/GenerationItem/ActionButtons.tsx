@@ -3,7 +3,7 @@
 import { type ActionIconGroupProps } from '@lobehub/ui';
 import { ActionIconGroup } from '@lobehub/ui';
 import { type ActionIconProps } from '@lobehub/ui/base-ui';
-import { Dices, Download, Trash2 } from 'lucide-react';
+import { Dices, Download, Eraser, Sparkles, Trash2 } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +19,8 @@ export const ActionButtons = memo<ActionButtonsProps>(
     onDelete,
     onDownload,
     onCopySeed,
+    onRemoveBackground,
+    onUpscale,
     showDownload = false,
     showCopySeed = false,
     seedTooltip,
@@ -40,6 +42,18 @@ export const ActionButtons = memo<ActionButtonsProps>(
                 label: t('generation.actions.download'),
                 onClick: onDownload,
               },
+              Boolean(onRemoveBackground) && {
+                icon: Eraser,
+                key: 'removeBackground',
+                label: t('generation.actions.removeBackground'),
+                onClick: onRemoveBackground,
+              },
+              Boolean(onUpscale) && {
+                icon: Sparkles,
+                key: 'upscale',
+                label: t('generation.actions.upscale'),
+                onClick: onUpscale,
+              },
               Boolean(showCopySeed && onCopySeed) && {
                 icon: Dices,
                 key: 'copySeed',
@@ -54,7 +68,16 @@ export const ActionButtons = memo<ActionButtonsProps>(
                 onClick: onDelete,
               },
             ].filter(Boolean) as ActionIconGroupProps['items'],
-          [showDownload, onDownload, showCopySeed, onCopySeed, seedTooltip, onDelete],
+          [
+            showDownload,
+            onDownload,
+            onRemoveBackground,
+            onUpscale,
+            showCopySeed,
+            onCopySeed,
+            seedTooltip,
+            onDelete,
+          ],
         )}
       />
     );
