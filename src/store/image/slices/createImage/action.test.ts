@@ -283,6 +283,112 @@ describe('CreateImageAction', () => {
     });
   });
 
+  describe('createUtilityImage', () => {
+    it('should call imageService.createImage with the fixed model/prompt for removeBackground', async () => {
+      const mockRefreshGenerationBatches = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({
+          refreshGenerationBatches: mockRefreshGenerationBatches,
+        });
+      });
+
+      await act(async () => {
+        await result.current.createUtilityImage(
+          'https://example.com/source.jpg',
+          'removeBackground',
+        );
+      });
+
+      expect(mockImageService.createImage).toHaveBeenCalledWith({
+        generationTopicId: 'active-topic-id',
+        provider: 'fal',
+        model: 'fal-ai/birefnet/v2',
+        imageNum: 1,
+        params: { prompt: 'Remove background', imageUrl: 'https://example.com/source.jpg' },
+      });
+      expect(mockRefreshGenerationBatches).toHaveBeenCalled();
+    });
+
+    it('should call imageService.createImage with the fixed model/prompt for upscale', async () => {
+      const mockRefreshGenerationBatches = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({
+          refreshGenerationBatches: mockRefreshGenerationBatches,
+        });
+      });
+
+      await act(async () => {
+        await result.current.createUtilityImage('https://example.com/source.jpg', 'upscale');
+      });
+
+      expect(mockImageService.createImage).toHaveBeenCalledWith({
+        generationTopicId: 'active-topic-id',
+        provider: 'fal',
+        model: 'fal-ai/bria/increase-resolution',
+        imageNum: 1,
+        params: { prompt: 'Upscale 2x', imageUrl: 'https://example.com/source.jpg' },
+      });
+      expect(mockRefreshGenerationBatches).toHaveBeenCalled();
+    });
+
+    it('should create a new topic when no active topic exists', async () => {
+      const mockCreateGenerationTopic = vi.fn().mockResolvedValue('new-topic-id');
+      const mockSwitchGenerationTopic = vi.fn();
+      const mockSetTopicBatchLoaded = vi.fn();
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({
+          activeGenerationTopicId: '',
+          createGenerationTopic: mockCreateGenerationTopic,
+          switchGenerationTopic: mockSwitchGenerationTopic,
+          setTopicBatchLoaded: mockSetTopicBatchLoaded,
+        });
+      });
+
+      await act(async () => {
+        await result.current.createUtilityImage('https://example.com/source.jpg', 'upscale');
+      });
+
+      expect(mockCreateGenerationTopic).toHaveBeenCalledWith(['Upscale 2x']);
+      expect(mockSetTopicBatchLoaded).toHaveBeenCalledWith('new-topic-id');
+      expect(mockSwitchGenerationTopic).toHaveBeenCalledWith('new-topic-id');
+      expect(mockImageService.createImage).toHaveBeenCalledWith({
+        generationTopicId: 'new-topic-id',
+        provider: 'fal',
+        model: 'fal-ai/bria/increase-resolution',
+        imageNum: 1,
+        params: { prompt: 'Upscale 2x', imageUrl: 'https://example.com/source.jpg' },
+      });
+    });
+
+    it('should propagate service errors', async () => {
+      const error = new Error('Service error');
+      mockImageService.createImage.mockRejectedValueOnce(error);
+      const { result } = renderHook(() => useImageStore());
+
+      let caught: unknown;
+      await act(async () => {
+        try {
+          await result.current.createUtilityImage(
+            'https://example.com/source.jpg',
+            'removeBackground',
+          );
+        } catch (e) {
+          caught = e;
+        }
+      });
+      expect((caught as Error)?.message).toBe('Service error');
+
+      expect(handleGenerationPromptModerationErrorMock).toHaveBeenCalledWith(error);
+      expect(useImageStore.getState().isCreating).toBe(false);
+    });
+  });
+
   describe('recreateImage', () => {
     it('should recreate image successfully', async () => {
       const mockRefreshGenerationBatches = vi.fn().mockResolvedValue(undefined);

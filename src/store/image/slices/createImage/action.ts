@@ -8,6 +8,13 @@ import { generationBatchSelectors } from '../generationBatch/selectors';
 import { imageGenerationConfigSelectors } from '../generationConfig/selectors';
 import { generationTopicSelectors } from '../generationTopic';
 
+const UTILITY_TOOLS = {
+  removeBackground: { model: 'fal-ai/birefnet/v2', prompt: 'Remove background' },
+  upscale: { model: 'fal-ai/bria/increase-resolution', prompt: 'Upscale 2x' },
+} as const;
+
+export type UtilityTool = keyof typeof UTILITY_TOOLS;
+
 type Setter = StoreSetter<ImageStore>;
 export const createCreateImageSlice = (set: Setter, get: () => ImageStore, _api?: unknown) =>
   new CreateImageActionImpl(set, get, _api);
@@ -109,6 +116,45 @@ export class CreateImageActionImpl {
       } else {
         this.#set({ isCreating: false }, false, 'createImage/endCreateImage');
       }
+    }
+  }
+
+  async createUtilityImage(sourceImageUrl: string, tool: UtilityTool) {
+    this.#set({ isCreating: true }, false, 'createUtilityImage/start');
+
+    const store = this.#get();
+    const activeGenerationTopicId = generationTopicSelectors.activeGenerationTopicId(store);
+    const { createGenerationTopic, switchGenerationTopic, setTopicBatchLoaded } = store;
+    const { model, prompt } = UTILITY_TOOLS[tool];
+
+    let finalTopicId = activeGenerationTopicId;
+    let isNewTopic = false;
+
+    if (!activeGenerationTopicId) {
+      isNewTopic = true;
+      finalTopicId = await createGenerationTopic([prompt]);
+      setTopicBatchLoaded(finalTopicId);
+      switchGenerationTopic(finalTopicId);
+    }
+
+    try {
+      await imageService.createImage({
+        generationTopicId: finalTopicId!,
+        provider: 'fal',
+        model,
+        imageNum: 1,
+        params: { imageUrl: sourceImageUrl, prompt } as any,
+      });
+
+      if (!isNewTopic) {
+        await this.#get().refreshGenerationBatches();
+      }
+    } catch (error) {
+      handleGenerationPromptModerationError(error);
+      handleLobeHubModelDeprecatedError(error);
+      throw error;
+    } finally {
+      this.#set({ isCreating: false }, false, 'createUtilityImage/end');
     }
   }
 
