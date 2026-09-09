@@ -105,6 +105,30 @@ describe('LobeFalAI', () => {
       });
     });
 
+    it('should parse a singular `image` response (e.g. birefnet, bria utility endpoints)', async () => {
+      mockFal.subscribe.mockResolvedValue({
+        data: {
+          image: {
+            url: 'https://example.com/no-bg.png',
+            width: 800,
+            height: 600,
+          },
+        },
+        requestId: 'test-request-id',
+      } as any);
+
+      const result = await instance.createImage({
+        model: 'birefnet/v2',
+        params: { imageUrl: 'https://example.com/source.jpg' } as any,
+      });
+
+      expect(result).toEqual({
+        imageUrl: 'https://example.com/no-bg.png',
+        width: 800,
+        height: 600,
+      });
+    });
+
     it('should use mapped model id for fal endpoint requests', async () => {
       const mappedInstance = new LobeFalAI({
         apiKey: 'test-api-key',

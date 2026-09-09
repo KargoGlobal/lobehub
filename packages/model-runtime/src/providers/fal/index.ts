@@ -116,7 +116,11 @@ export class LobeFalAI implements LobeRuntimeAI {
       const { data } = await fal.subscribe(endpoint, {
         input: finalInput,
       });
-      const image = (data as FluxDevOutput).images[0];
+      // Utility endpoints (e.g. birefnet, bria/increase-resolution) return a
+      // singular `image`, not the `images[]` array every other fal image model uses.
+      const image =
+        (data as FluxDevOutput).images?.[0] ??
+        (data as { image?: FluxDevOutput['images'][0] }).image!;
 
       return {
         imageUrl: image.url,
