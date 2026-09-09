@@ -21,7 +21,7 @@ const log = debug('lobe-image:fal');
 
 // fal hosts models under vendor namespaces (e.g. `openai/gpt-image-2`); only
 // bare model ids get the default `fal-ai/` prefix.
-const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/'];
+const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/'];
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
 

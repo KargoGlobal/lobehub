@@ -10,7 +10,7 @@ import { generationTopicSelectors } from '../generationTopic';
 
 const UTILITY_TOOLS = {
   removeBackground: { model: 'fal-ai/birefnet/v2', prompt: 'Remove background' },
-  upscale: { model: 'fal-ai/bria/increase-resolution', prompt: 'Upscale 2x' },
+  upscale: { model: 'bria/increase-resolution', prompt: 'Upscale 2x' },
 } as const;
 
 export type UtilityTool = keyof typeof UTILITY_TOOLS;

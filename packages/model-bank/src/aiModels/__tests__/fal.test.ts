@@ -5,7 +5,7 @@ import { allModels } from '../fal';
 describe('fal model-bank', () => {
   it('includes background removal and upscale utility models, disabled by default', () => {
     const birefnet = allModels.find((m) => m.id === 'fal-ai/birefnet/v2');
-    const upscale = allModels.find((m) => m.id === 'fal-ai/bria/increase-resolution');
+    const upscale = allModels.find((m) => m.id === 'bria/increase-resolution');
 
     expect(birefnet).toMatchObject({
       enabled: false,

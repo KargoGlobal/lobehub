@@ -328,7 +328,7 @@ describe('CreateImageAction', () => {
       expect(mockImageService.createImage).toHaveBeenCalledWith({
         generationTopicId: 'active-topic-id',
         provider: 'fal',
-        model: 'fal-ai/bria/increase-resolution',
+        model: 'bria/increase-resolution',
         imageNum: 1,
         params: { prompt: 'Upscale 2x', imageUrl: 'https://example.com/source.jpg' },
       });
@@ -360,7 +360,7 @@ describe('CreateImageAction', () => {
       expect(mockImageService.createImage).toHaveBeenCalledWith({
         generationTopicId: 'new-topic-id',
         provider: 'fal',
-        model: 'fal-ai/bria/increase-resolution',
+        model: 'bria/increase-resolution',
         imageNum: 1,
         params: { prompt: 'Upscale 2x', imageUrl: 'https://example.com/source.jpg' },
       });

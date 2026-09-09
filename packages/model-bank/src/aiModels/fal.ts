@@ -277,7 +277,8 @@ const falImageModels: AIImageModelCard[] = [
       'Bria Increase Resolution upscales an image 2x or 4x (up to 8192x8192) while preserving its original content. Used for one-click upscaling on existing or uploaded images.',
     displayName: 'Upscale',
     enabled: false,
-    id: 'fal-ai/bria/increase-resolution',
+    id: 'bria/increase-resolution',
+    organization: 'Bria',
     parameters: {
       imageUrl: { default: null },
       prompt: { default: '' },
