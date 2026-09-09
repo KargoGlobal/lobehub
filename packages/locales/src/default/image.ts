@@ -77,6 +77,8 @@ export default {
     'The current model is no longer available from {{name}}. Please switch to an available model.',
   'notice.providerDisabled':
     'The provider {{name}} for the current model is disabled. Please enable it or switch to an available model.',
+  'tools.clear': 'Clear uploaded image',
+  'tools.upload': 'Upload image',
   'topic.createNew': 'Create New Topic',
   'topic.createdBy': 'Created by {{name}}',
   'topic.deleteConfirm': 'Delete Generation Topic',

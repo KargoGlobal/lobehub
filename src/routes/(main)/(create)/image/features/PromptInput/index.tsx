@@ -51,6 +51,7 @@ import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/slices/auth/selectors';
 
 import PromptTitle from './Title';
+import UploadToolButton from './UploadToolButton';
 import { useImageReferenceUpload } from './useImageReferenceUpload';
 
 interface PromptInputProps {
@@ -310,6 +311,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
             style={canCreate ? undefined : { opacity: 0.5, pointerEvents: 'none' }}
           >
             <GenerationMediaModeSegment mode={'image'} />
+            <UploadToolButton />
             <ModelSwitchPanel
               ModelItemComponent={ImageModelItem}
               enabledList={enabledImageModelList}

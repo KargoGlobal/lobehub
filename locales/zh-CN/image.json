@@ -69,6 +69,8 @@
   "notSupportGuide.title": "当前部署模式不支持 AI 绘画",
   "notice.modelRemoved": "当前模型已不在 {{name}} 的模型列表中，请先切换可用模型",
   "notice.providerDisabled": "当前模型所属的服务商 {{name}} 未启用，请先启用或切换可用模型",
+  "tools.clear": "清除已上传图片",
+  "tools.upload": "上传图片",
   "topic.createNew": "创作新主题",
   "topic.createdBy": "由 {{name}} 创建",
   "topic.deleteConfirm": "删除生成主题",
