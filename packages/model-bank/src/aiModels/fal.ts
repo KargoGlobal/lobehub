@@ -256,6 +256,36 @@ const falImageModels: AIImageModelCard[] = [
     releasedAt: '2025-08-04',
     type: 'image',
   },
+  {
+    description:
+      'BiRefNet V2 removes the background from an image, returning a transparent PNG. Used for one-click background removal on existing or uploaded images.',
+    displayName: 'Remove Background',
+    enabled: false,
+    id: 'fal-ai/birefnet/v2',
+    parameters: {
+      imageUrl: { default: null },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-09',
+    type: 'image',
+  },
+  {
+    description:
+      'Bria Increase Resolution upscales an image 2x or 4x (up to 8192x8192) while preserving its original content. Used for one-click upscaling on existing or uploaded images.',
+    displayName: 'Upscale',
+    enabled: false,
+    id: 'fal-ai/bria/increase-resolution',
+    parameters: {
+      imageUrl: { default: null },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-09',
+    type: 'image',
+  },
 ];
 
 const falVideoParamsSchema = {
