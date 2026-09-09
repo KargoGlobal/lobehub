@@ -264,6 +264,7 @@ const falImageModels: AIImageModelCard[] = [
     id: 'fal-ai/birefnet/v2',
     parameters: {
       imageUrl: { default: null },
+      prompt: { default: '' },
     },
     pricing: {
       units: [{ name: 'imageGeneration', rate: 0, strategy: 'fixed', unit: 'image' }],
@@ -279,6 +280,7 @@ const falImageModels: AIImageModelCard[] = [
     id: 'fal-ai/bria/increase-resolution',
     parameters: {
       imageUrl: { default: null },
+      prompt: { default: '' },
     },
     pricing: {
       units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
