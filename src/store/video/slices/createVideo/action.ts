@@ -1,5 +1,6 @@
 import { toast } from '@lobehub/ui/base-ui';
 import { t } from 'i18next';
+import type { RuntimeVideoGenParams } from 'model-bank';
 
 import { handleGenerationPromptModerationError } from '@/business/client/handleGenerationPromptModerationError';
 import { handleLobeHubModelDeprecatedError } from '@/business/client/handleLobeHubModelDeprecatedError';
@@ -12,6 +13,12 @@ import { videoGenerationConfigSelectors } from '../generationConfig/selectors';
 import { generationTopicSelectors } from '../generationTopic';
 
 type Setter = StoreSetter<VideoStore>;
+
+export interface VideoGenerationRequest {
+  model: string;
+  params: RuntimeVideoGenParams;
+  provider: string;
+}
 
 export const createCreateVideoSlice = (set: Setter, get: () => VideoStore, _api?: unknown) =>
   new CreateVideoActionImpl(set, get, _api);
@@ -128,6 +135,57 @@ export class CreateVideoActionImpl {
       } else {
         this.#set({ isCreating: false }, false, 'createVideo/endCreateVideo');
       }
+    }
+  };
+
+  /**
+   * Generate one or more videos with explicit model/provider/params, sharing a
+   * single generation topic. Used by Auto-animate, where each concept targets
+   * its own fal endpoint regardless of the model selected in the toolbar.
+   */
+  createVideosFromRequests = async (requests: VideoGenerationRequest[]): Promise<void> => {
+    if (requests.length === 0) return;
+
+    this.#set({ isCreating: true }, false, 'createVideosFromRequests/start');
+
+    const store = this.#get();
+    const activeGenerationTopicId = generationTopicSelectors.activeGenerationTopicId(store);
+    const { createGenerationTopic, switchGenerationTopic, setTopicBatchLoaded } = store;
+
+    let finalTopicId = activeGenerationTopicId;
+    const isNewTopic = !activeGenerationTopicId;
+
+    if (isNewTopic) {
+      const newGenerationTopicId = await createGenerationTopic(
+        requests.map((r) => r.params.prompt),
+      );
+      finalTopicId = newGenerationTopicId;
+      setTopicBatchLoaded(newGenerationTopicId);
+      switchGenerationTopic(newGenerationTopicId);
+      this.#set({ isCreatingWithNewTopic: true }, false, 'createVideosFromRequests/newTopic');
+    }
+
+    try {
+      // Sequential so topic/batch ordering matches the concept order.
+      for (const request of requests) {
+        await videoService.createVideo({
+          generationTopicId: finalTopicId!,
+          model: request.model,
+          params: request.params as any,
+          provider: request.provider,
+        });
+        await this.#get().refreshGenerationBatches();
+      }
+    } catch (error) {
+      handleGenerationPromptModerationError(error);
+      handleLobeHubModelDeprecatedError(error);
+      throw error;
+    } finally {
+      this.#set(
+        { isCreating: false, isCreatingWithNewTopic: false },
+        false,
+        'createVideosFromRequests/end',
+      );
     }
   };
 
