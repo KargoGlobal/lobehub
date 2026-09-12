@@ -389,6 +389,97 @@ describe('CreateImageAction', () => {
     });
   });
 
+  describe('createEditedImage', () => {
+    it('spreads the caller-supplied params alongside the source image url', async () => {
+      const mockRefreshGenerationBatches = vi.fn().mockResolvedValue(undefined);
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({ refreshGenerationBatches: mockRefreshGenerationBatches });
+      });
+
+      await act(async () => {
+        await result.current.createEditedImage('https://example.com/source.jpg', {
+          model: 'fal-ai/image-editing/reframe',
+          params: { prompt: 'Resize to 16:9', aspectRatio: '16:9' },
+        });
+      });
+
+      expect(mockImageService.createImage).toHaveBeenCalledWith({
+        generationTopicId: 'active-topic-id',
+        provider: 'fal',
+        model: 'fal-ai/image-editing/reframe',
+        imageNum: 1,
+        params: {
+          imageUrl: 'https://example.com/source.jpg',
+          prompt: 'Resize to 16:9',
+          aspectRatio: '16:9',
+        },
+      });
+      expect(mockRefreshGenerationBatches).toHaveBeenCalled();
+    });
+
+    it('creates a new topic from the request prompt when no active topic exists', async () => {
+      const mockCreateGenerationTopic = vi.fn().mockResolvedValue('new-topic-id');
+      const mockSwitchGenerationTopic = vi.fn();
+      const mockSetTopicBatchLoaded = vi.fn();
+      const { result } = renderHook(() => useImageStore());
+
+      act(() => {
+        useImageStore.setState({
+          activeGenerationTopicId: '',
+          createGenerationTopic: mockCreateGenerationTopic,
+          switchGenerationTopic: mockSwitchGenerationTopic,
+          setTopicBatchLoaded: mockSetTopicBatchLoaded,
+        });
+      });
+
+      await act(async () => {
+        await result.current.createEditedImage('https://example.com/source.jpg', {
+          model: 'fal-ai/bria/product-shot',
+          params: { prompt: 'Place in: on a marble counter', scene_description: 'marble counter' },
+        });
+      });
+
+      expect(mockCreateGenerationTopic).toHaveBeenCalledWith(['Place in: on a marble counter']);
+      expect(mockSetTopicBatchLoaded).toHaveBeenCalledWith('new-topic-id');
+      expect(mockSwitchGenerationTopic).toHaveBeenCalledWith('new-topic-id');
+      expect(mockImageService.createImage).toHaveBeenCalledWith({
+        generationTopicId: 'new-topic-id',
+        provider: 'fal',
+        model: 'fal-ai/bria/product-shot',
+        imageNum: 1,
+        params: {
+          imageUrl: 'https://example.com/source.jpg',
+          prompt: 'Place in: on a marble counter',
+          scene_description: 'marble counter',
+        },
+      });
+    });
+
+    it('propagates service errors and resets isCreating', async () => {
+      const error = new Error('Service error');
+      mockImageService.createImage.mockRejectedValueOnce(error);
+      const { result } = renderHook(() => useImageStore());
+
+      let caught: unknown;
+      await act(async () => {
+        try {
+          await result.current.createEditedImage('https://example.com/source.jpg', {
+            model: 'fal-ai/iclight-v2',
+            params: { prompt: 'soft warm light from the upper left' },
+          });
+        } catch (e) {
+          caught = e;
+        }
+      });
+      expect((caught as Error)?.message).toBe('Service error');
+
+      expect(handleGenerationPromptModerationErrorMock).toHaveBeenCalledWith(error);
+      expect(useImageStore.getState().isCreating).toBe(false);
+    });
+  });
+
   describe('recreateImage', () => {
     it('should recreate image successfully', async () => {
       const mockRefreshGenerationBatches = vi.fn().mockResolvedValue(undefined);

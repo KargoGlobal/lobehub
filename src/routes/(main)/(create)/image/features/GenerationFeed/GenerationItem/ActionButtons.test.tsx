@@ -22,6 +22,7 @@ vi.mock('@lobehub/ui', async () => {
             ),
           ),
       ),
+    Flexbox: ({ children, ...rest }: any) => React.createElement('div', rest, children),
   };
 });
 

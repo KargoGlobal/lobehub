@@ -17,6 +17,14 @@ vi.mock('@/hooks/usePermission', () => ({
   usePermission: () => ({ allowed: true }),
 }));
 
+// Exercised in its own test file; stub it here so this test's render tree
+// doesn't need the toolbar Action component's server-config/action-bar
+// context providers.
+vi.mock(
+  '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ImageEditToolButton',
+  () => ({ default: () => null }),
+);
+
 describe('UploadToolButton', () => {
   it('uploads a file then runs the chosen tool against the uploaded url', async () => {
     const createUtilityImage = vi.fn().mockResolvedValue(undefined);

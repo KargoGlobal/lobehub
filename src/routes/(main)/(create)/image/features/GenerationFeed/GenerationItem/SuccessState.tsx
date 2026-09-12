@@ -48,6 +48,7 @@ export const SuccessState = memo<SuccessStateProps>(
           showDownload
           seedTooltip={seedTooltip}
           showCopySeed={!!generation.seed}
+          sourceUrl={generation.asset!.url}
           onCopySeed={onCopySeed}
           onDelete={onDelete}
           onDownload={onDownload}

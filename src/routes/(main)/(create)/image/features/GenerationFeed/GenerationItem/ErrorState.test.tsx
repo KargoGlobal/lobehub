@@ -14,6 +14,7 @@ vi.mock('@lobehub/ui', async () => {
     Block: ({ children, onClick, style }: any) =>
       React.createElement('div', { onClick, style }, children),
     Center: ({ children }: any) => React.createElement('div', null, children),
+    Flexbox: ({ children, ...rest }: any) => React.createElement('div', rest, children),
     Icon: () => React.createElement('span', { 'data-testid': 'icon' }),
     Text: ({ children }: any) => React.createElement('span', null, children),
   };
