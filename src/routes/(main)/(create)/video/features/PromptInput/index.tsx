@@ -28,6 +28,7 @@ import {
 } from '@/routes/(main)/(create)/features/GenerationInput';
 import { AspectRatioSelect } from '@/routes/(main)/(create)/image/features/ConfigPanel';
 import Select from '@/routes/(main)/(create)/image/features/ConfigPanel/components/Select';
+import CameraDirectorAction from '@/routes/(main)/(create)/video/features/CameraDirector';
 import VideoModelItem from '@/routes/(main)/(create)/video/features/ConfigPanel/components/ModelSelect/VideoModelItem';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useUserStore } from '@/store/user';
@@ -627,6 +628,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
                   </Flexbox>
                 }
               />
+              <CameraDirectorAction />
               {isSupportDuration && (
                 <Action
                   icon={Clock3}

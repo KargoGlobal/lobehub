@@ -21,9 +21,58 @@ const log = debug('lobe-image:fal');
 
 // fal hosts models under vendor namespaces (e.g. `openai/gpt-image-2`); only
 // bare model ids get the default `fal-ai/` prefix.
-const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/'];
+const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/'];
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
+
+// MiniMax H3 family on fal (`minimax/h3`, `minimax/h3-max`). These endpoints
+// differ from the Veo-style ones: duration is an integer, the text-to-video and
+// image-to-video variants are separate endpoints, and they accept a start/end
+// frame pair plus a `prompt_expansion_mode`.
+const isFalH3Endpoint = (endpoint: string) => /^minimax\/h3(?:-max)?(?:\/|$)/.test(endpoint);
+const H3_DURATION_MIN = 5;
+const H3_DURATION_MAX = 15;
+const H3_PROMPT_EXPANSION_MODES = new Set(['balanced', 'quality']);
+
+const buildFalH3VideoInput = (
+  endpoint: string,
+  params: CreateVideoPayload['params'],
+): { endpoint: string; input: Record<string, unknown> } => {
+  const hasStartFrame = typeof params.imageUrl === 'string' && params.imageUrl.length > 0;
+  const hasEndFrame = typeof params.endImageUrl === 'string' && params.endImageUrl.length > 0;
+
+  // A bare `minimax/h3-max` id resolves to the matching task endpoint.
+  const resolvedEndpoint = /\/(?:text|image)-to-video$/.test(endpoint)
+    ? endpoint
+    : `${endpoint}/${hasStartFrame ? 'image' : 'text'}-to-video`;
+  const isImageToVideo = resolvedEndpoint.endsWith('/image-to-video');
+
+  const input: Record<string, unknown> = { prompt: params.prompt };
+
+  // Integer seconds, clamped to the fal schema range.
+  if (typeof params.duration === 'number' && Number.isFinite(params.duration)) {
+    input.duration = Math.min(
+      H3_DURATION_MAX,
+      Math.max(H3_DURATION_MIN, Math.round(params.duration)),
+    );
+  }
+  if (params.resolution) input.resolution = String(params.resolution).toUpperCase();
+  // image-to-video has no aspect_ratio: the start frame decides it.
+  if (!isImageToVideo && params.aspectRatio) input.aspect_ratio = params.aspectRatio;
+  if (isImageToVideo) {
+    if (hasStartFrame) input.image_url = params.imageUrl;
+    // fal rejects an end frame without a start frame, so only forward the pair.
+    if (hasStartFrame && hasEndFrame) input.end_image_url = params.endImageUrl;
+  }
+  const expansion =
+    typeof params.promptExtend === 'string' && H3_PROMPT_EXPANSION_MODES.has(params.promptExtend)
+      ? params.promptExtend
+      : 'balanced';
+  input.prompt_expansion_mode = expansion;
+  if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+
+  return { endpoint: resolvedEndpoint, input };
+};
 
 // inferenceId must round-trip through the async task queue as a single string,
 // but fal's queue API needs both the endpoint and the request id to poll.
@@ -157,14 +206,19 @@ export class LobeFalAI implements LobeRuntimeAI {
   async createVideo(payload: CreateVideoPayload): Promise<CreateVideoResponse> {
     const { model, params } = payload;
     const requestModel = resolveMappedModelId(model, this.modelIdMappingOptions);
-    const endpoint = resolveFalEndpoint(requestModel);
+    let endpoint = resolveFalEndpoint(requestModel);
 
-    const input: Record<string, unknown> = { prompt: params.prompt };
-    if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
-    // fal video endpoints take duration as an enum string like "8s"
-    if (params.duration) input.duration = `${params.duration}s`;
-    if (params.resolution) input.resolution = params.resolution;
-    if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+    let input: Record<string, unknown>;
+    if (isFalH3Endpoint(endpoint)) {
+      ({ endpoint, input } = buildFalH3VideoInput(endpoint, params));
+    } else {
+      input = { prompt: params.prompt };
+      if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
+      // Veo-style fal video endpoints take duration as an enum string like "8s"
+      if (params.duration) input.duration = `${params.duration}s`;
+      if (params.resolution) input.resolution = params.resolution;
+      if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+    }
 
     log('Submitting fal video task on endpoint: %s with input: %O', endpoint, input);
     try {

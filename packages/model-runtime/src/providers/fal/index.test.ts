@@ -9,6 +9,11 @@ import { LobeFalAI } from './index';
 vi.mock('@fal-ai/client', () => ({
   fal: {
     config: vi.fn(),
+    queue: {
+      result: vi.fn(),
+      status: vi.fn(),
+      submit: vi.fn(),
+    },
     subscribe: vi.fn(),
   },
 }));
@@ -1035,6 +1040,187 @@ describe('LobeFalAI', () => {
           height: 1024,
         });
       });
+    });
+  });
+  describe('createVideo', () => {
+    const submitted = () => (mockFal.queue.submit as any).mock.calls[0] as [string, { input: any }];
+
+    beforeEach(() => {
+      (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-1' });
+    });
+
+    describe('Veo-style endpoints (unchanged)', () => {
+      it('should send duration as an "Ns" enum string and keep the endpoint as-is', async () => {
+        const result = await instance.createVideo({
+          model: 'fal-ai/veo3.1',
+          params: { aspectRatio: '16:9', duration: 8, prompt: 'a drone shot', resolution: '1080p' },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('fal-ai/veo3.1');
+        expect(input).toEqual({
+          aspect_ratio: '16:9',
+          duration: '8s',
+          prompt: 'a drone shot',
+          resolution: '1080p',
+        });
+        expect(result).toEqual({ inferenceId: 'fal-ai/veo3.1::req-1' });
+      });
+    });
+
+    describe('MiniMax H3 Max', () => {
+      it('should route to text-to-video when no start frame is attached', async () => {
+        const result = await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: {
+            aspectRatio: '9:16',
+            duration: 10,
+            prompt: 'slow orbit around a glass sculpture',
+            promptExtend: 'quality',
+            resolution: '1080P',
+            seed: 42,
+          },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('minimax/h3-max/text-to-video');
+        expect(input).toEqual({
+          aspect_ratio: '9:16',
+          duration: 10,
+          prompt: 'slow orbit around a glass sculpture',
+          prompt_expansion_mode: 'quality',
+          resolution: '1080P',
+          seed: 42,
+        });
+        expect(result).toEqual({ inferenceId: 'minimax/h3-max/text-to-video::req-1' });
+      });
+
+      it('should route to image-to-video with a start frame and drop aspect_ratio', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: {
+            aspectRatio: '16:9',
+            duration: 8,
+            imageUrl: 'https://cdn.example.com/product.png',
+            prompt: 'product rotates 360° on a turntable',
+            resolution: '768P',
+          },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('minimax/h3-max/image-to-video');
+        expect(input).toEqual({
+          duration: 8,
+          image_url: 'https://cdn.example.com/product.png',
+          prompt: 'product rotates 360° on a turntable',
+          prompt_expansion_mode: 'balanced',
+          resolution: '768P',
+        });
+        expect(input).not.toHaveProperty('aspect_ratio');
+      });
+
+      it('should forward an end frame only together with a start frame (seamless loop)', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: {
+            endImageUrl: 'https://cdn.example.com/loop.png',
+            imageUrl: 'https://cdn.example.com/loop.png',
+            prompt: 'seamless background loop',
+          },
+        });
+        expect(submitted()[1].input).toMatchObject({
+          end_image_url: 'https://cdn.example.com/loop.png',
+          image_url: 'https://cdn.example.com/loop.png',
+        });
+
+        vi.clearAllMocks();
+        (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-2' });
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: { endImageUrl: 'https://cdn.example.com/end.png', prompt: 'no start frame' },
+        });
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('minimax/h3-max/text-to-video');
+        expect(input).not.toHaveProperty('end_image_url');
+        expect(input).not.toHaveProperty('image_url');
+      });
+
+      it('should clamp and round duration into the 5–15s range', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: { duration: 3, prompt: 'too short' },
+        });
+        expect(submitted()[1].input.duration).toBe(5);
+
+        vi.clearAllMocks();
+        (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-3' });
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: { duration: 22, prompt: 'too long' },
+        });
+        expect(submitted()[1].input.duration).toBe(15);
+
+        vi.clearAllMocks();
+        (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-4' });
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: { duration: 7.6, prompt: 'fractional' },
+        });
+        expect(submitted()[1].input.duration).toBe(8);
+      });
+
+      it('should fall back to balanced expansion for unknown promptExtend values', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3-max',
+          params: { prompt: 'x', promptExtend: true as any },
+        });
+        expect(submitted()[1].input.prompt_expansion_mode).toBe('balanced');
+      });
+
+      it('should respect an explicit task endpoint and normalise resolution casing', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3-max/image-to-video',
+          params: { imageUrl: 'https://cdn.example.com/a.png', prompt: 'x', resolution: '1080p' },
+        });
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('minimax/h3-max/image-to-video');
+        expect(input.resolution).toBe('1080P');
+      });
+
+      it('should map a 401 to InvalidProviderAPIKey', async () => {
+        const error = Object.assign(new Error('unauthorized'), { status: 401 });
+        (mockFal.queue.submit as any).mockRejectedValue(error);
+
+        await expect(
+          instance.createVideo({ model: 'minimax/h3-max', params: { prompt: 'x' } }),
+        ).rejects.toEqual({ error: { error }, errorType: invalidErrorType });
+      });
+    });
+  });
+
+  describe('handlePollVideoStatus', () => {
+    it('should return pending while the queue is still working', async () => {
+      (mockFal.queue.status as any).mockResolvedValue({ status: 'IN_PROGRESS' });
+      const result = await instance.handlePollVideoStatus('minimax/h3-max/text-to-video::req-1');
+      expect(result).toEqual({ status: 'pending' });
+      expect(mockFal.queue.status).toHaveBeenCalledWith('minimax/h3-max/text-to-video', {
+        logs: false,
+        requestId: 'req-1',
+      });
+    });
+
+    it('should return the video url once completed', async () => {
+      (mockFal.queue.status as any).mockResolvedValue({ status: 'COMPLETED' });
+      (mockFal.queue.result as any).mockResolvedValue({
+        data: { video: { url: 'https://cdn.example.com/out.mp4' } },
+      });
+      const result = await instance.handlePollVideoStatus('minimax/h3-max/image-to-video::req-9');
+      expect(result).toEqual({ status: 'success', videoUrl: 'https://cdn.example.com/out.mp4' });
+    });
+
+    it('should fail on a malformed inference id', async () => {
+      const result = await instance.handlePollVideoStatus('no-separator');
+      expect(result.status).toBe('failed');
     });
   });
 });

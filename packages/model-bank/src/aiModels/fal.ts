@@ -1,4 +1,4 @@
-import type { ModelParamsSchema } from '../standard-parameters';
+import type { ModelParamsSchema, VideoModelParamsSchema } from '../standard-parameters';
 import type { AIImageModelCard, AIVideoModelCard } from '../types/aiModel';
 
 export const fluxSchnellParamsSchema: ModelParamsSchema = {
@@ -336,6 +336,48 @@ const falVideoModels: AIVideoModelCard[] = [
   },
 ];
 
-export const allModels = [...falImageModels, ...falVideoModels];
+// MiniMax H3 Max via fal. One card covers both fal endpoints
+// (`minimax/h3-max/text-to-video` and `minimax/h3-max/image-to-video`): the
+// runtime picks the endpoint from whether a start frame is attached. Camera
+// control is prompt-driven (filmmaking language + timestamped shot blocks), so
+// the Camera Director in the video workspace targets this model.
+const h3MaxParamsSchema: VideoModelParamsSchema = {
+  // Only honoured by text-to-video; image-to-video follows the start frame.
+  aspectRatio: {
+    default: '16:9',
+    enum: ['21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+  },
+  duration: { default: 8, max: 15, min: 5, step: 1 },
+  endImageUrl: { default: null, requiresImageUrl: true },
+  imageUrl: { default: null },
+  prompt: { default: '' },
+  // fal `prompt_expansion_mode`: `balanced` (~1s rewrite) or `quality` (~30s).
+  promptExtend: { default: 'balanced', enum: ['balanced', 'quality'] },
+  resolution: {
+    default: '1080P',
+    enum: ['480P', '768P', '1080P'],
+  },
+  seed: { default: null },
+};
+
+const falH3VideoModels: AIVideoModelCard[] = [
+  {
+    description:
+      'MiniMax H3 Max served via fal: strong prompt adherence and temporal stability with native 1080p, 5–15s clips, start/end-frame control and prompt-driven camera moves — built for product spins and 3D background loops.',
+    displayName: 'MiniMax H3 Max',
+    enabled: true,
+    id: 'minimax/h3-max',
+    organization: 'MiniMax',
+    parameters: h3MaxParamsSchema,
+    pricing: {
+      // fal list price at the 1080P default; 768P is 0.08/s and 480P 0.05/s.
+      units: [{ name: 'videoGeneration', rate: 0.16, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-02',
+    type: 'video',
+  },
+];
+
+export const allModels = [...falImageModels, ...falVideoModels, ...falH3VideoModels];
 
 export default allModels;
