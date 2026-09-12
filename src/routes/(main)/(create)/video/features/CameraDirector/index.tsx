@@ -247,14 +247,18 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
   }, []);
 
   const switchTemplate = useCallback((template: DirectorTemplate) => {
-    setPlan((prev) => ({
-      ...createDefaultPlan(template),
-      duration: prev.duration,
-      hasStartFrame: prev.hasStartFrame,
-      placement: prev.placement,
-      // Carry the user's product/form description across templates.
-      subject: prev.subject,
-    }));
+    setPlan((prev) => {
+      const next = createDefaultPlan(template);
+      return {
+        ...next,
+        duration: prev.duration,
+        hasStartFrame: prev.hasStartFrame,
+        placement: prev.placement,
+        // Carry a user-written description across templates; otherwise use
+        // the recipe's own starter subject.
+        subject: prev.subject.trim() ? prev.subject : next.subject,
+      };
+    });
   }, []);
 
   const switchStyle = useCallback((style: BackgroundStyle | ProductStyle) => {
