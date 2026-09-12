@@ -1,4 +1,23 @@
 export default {
+  'autoAnimate.category': 'Product type',
+  'autoAnimate.concepts': 'Suggested animations',
+  'autoAnimate.description': 'Product',
+  'autoAnimate.descriptionPlaceholder':
+    'e.g. slim-fit black wool pants with a tapered leg — or just attach a product photo',
+  'autoAnimate.generate_one': 'Generate {{count}} video',
+  'autoAnimate.generate_other': 'Generate {{count}} videos',
+  'autoAnimate.hidePrompt': 'Hide prompt',
+  'autoAnimate.mode.reference': 'Photo as reference',
+  'autoAnimate.mode.startFrame': 'Photo as start frame',
+  'autoAnimate.mode.text': 'Text only',
+  'autoAnimate.noPhoto': 'Tip: attach a product photo first so every clip matches the real item.',
+  'autoAnimate.showPrompt': 'Show prompt',
+  'autoAnimate.started_one': 'Started {{count}} video',
+  'autoAnimate.started_other': 'Started {{count}} videos',
+  'autoAnimate.subtitle':
+    'Describe the product (or attach a photo), and get a few standard ad animations — spins, hero arcs, detail push-ins and on-model shots — ready to generate.',
+  'autoAnimate.title': 'Auto-animate',
+  'autoAnimate.usingPhoto': 'Using your attached product photo.',
   'cameraDirector.apply': 'Apply to prompt',
   'cameraDirector.applied': 'Camera Director prompt and settings applied',
   'cameraDirector.audio.ambient': 'Ambient room tone',
@@ -21,6 +40,9 @@ export default {
     'e.g. a 330ml matte black aluminium can with a silver pull tab',
   'cameraDirector.field.seamlessLoop': 'Seamless loop (end frame = start frame)',
   'cameraDirector.field.style': 'Rotation style',
+  'cameraDirector.field.talent': 'Talent (who wears / uses it)',
+  'cameraDirector.field.talentPlaceholder':
+    'e.g. an adult model with a neutral, relaxed expression',
   'cameraDirector.field.template': 'Recipe',
   'cameraDirector.placement.landscape': 'Landscape 16:9',
   'cameraDirector.placement.square': 'Square 1:1',
@@ -42,6 +64,7 @@ export default {
   'cameraDirector.subtitle':
     'Builds a structured MiniMax H3 prompt: timed shot blocks, one camera move per shot, ad-safe constraints. Two recipes: a 3D product ad and a 3D background loop.',
   'cameraDirector.template.background3d': '3D Background Loop',
+  'cameraDirector.template.onModel': 'On-model',
   'cameraDirector.template.product3d': '3D Product Ad',
   'cameraDirector.title': 'Camera Director',
   'config.aspectRatio.label': 'Aspect Ratio',

@@ -32,6 +32,8 @@ import {
   type Framing,
   FRAMINGS,
   MAX_SHOTS,
+  ON_MODEL_STYLES,
+  type OnModelStyle,
   type Placement,
   PRODUCT_STYLES,
   type ProductStyle,
@@ -261,7 +263,7 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
     });
   }, []);
 
-  const switchStyle = useCallback((style: BackgroundStyle | ProductStyle) => {
+  const switchStyle = useCallback((style: BackgroundStyle | ProductStyle | OnModelStyle) => {
     setPlan((prev) => ({ ...prev, shots: buildShotsForStyle(prev.template, style), style }));
   }, []);
 
@@ -299,21 +301,23 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
   const result = useMemo(() => compilePlan(plan, { resolution, seed }), [plan, resolution, seed]);
 
   const isProduct = plan.template === 'product3d';
+  const isOnModel = plan.template === 'onModel';
+  const isBackground = plan.template === 'background3d';
+  const stylesForTemplate = isOnModel
+    ? ON_MODEL_STYLES
+    : isProduct
+      ? PRODUCT_STYLES
+      : BACKGROUND_STYLES;
   const styleOptions = useMemo(
-    () =>
-      (isProduct ? PRODUCT_STYLES : BACKGROUND_STYLES).map((s) => ({
-        label: s.label,
-        value: s.id,
-      })),
-    [isProduct],
+    () => stylesForTemplate.map((s) => ({ label: s.label, value: s.id })),
+    [stylesForTemplate],
   );
-  const activeStyle = (isProduct ? PRODUCT_STYLES : BACKGROUND_STYLES).find(
-    (s) => s.id === plan.style,
-  );
+  const activeStyle = stylesForTemplate.find((s) => s.id === plan.style);
 
   const templateOptions = useMemo(
     () => [
       { label: t('cameraDirector.template.product3d'), value: 'product3d' as DirectorTemplate },
+      { label: t('cameraDirector.template.onModel'), value: 'onModel' as DirectorTemplate },
       {
         label: t('cameraDirector.template.background3d'),
         value: 'background3d' as DirectorTemplate,
@@ -421,7 +425,7 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
               <Select
                 options={styleOptions}
                 value={plan.style}
-                onChange={(v) => switchStyle(v as BackgroundStyle | ProductStyle)}
+                onChange={(v) => switchStyle(v as BackgroundStyle | ProductStyle | OnModelStyle)}
               />
               {activeStyle && <span className={styles.label}>{activeStyle.description}</span>}
             </Field>
@@ -449,21 +453,33 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
             </Flexbox>
 
             <Field
-              label={isProduct ? t('cameraDirector.field.product') : t('cameraDirector.field.form')}
+              label={
+                isBackground ? t('cameraDirector.field.form') : t('cameraDirector.field.product')
+              }
             >
               <TextArea
                 autoSize={{ maxRows: 3, minRows: 1 }}
                 value={plan.subject}
                 placeholder={
-                  isProduct
-                    ? t('cameraDirector.field.productPlaceholder')
-                    : t('cameraDirector.field.formPlaceholder')
+                  isBackground
+                    ? t('cameraDirector.field.formPlaceholder')
+                    : t('cameraDirector.field.productPlaceholder')
                 }
                 onChange={(e) => update({ subject: e.target.value })}
               />
             </Field>
 
-            {isProduct && (
+            {isOnModel && (
+              <Field label={t('cameraDirector.field.talent')}>
+                <Input
+                  placeholder={t('cameraDirector.field.talentPlaceholder')}
+                  value={plan.talent}
+                  onChange={(e) => update({ talent: e.target.value })}
+                />
+              </Field>
+            )}
+
+            {!isBackground && (
               <Field label={t('cameraDirector.field.detail')}>
                 <Input
                   placeholder={t('cameraDirector.field.detailPlaceholder')}
@@ -502,7 +518,7 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
                 onChange={(checked) => update({ seamlessLoop: checked })}
               />
             </Flexbox>
-            {!isProduct && (
+            {isBackground && (
               <Flexbox horizontal align={'center'} justify={'space-between'}>
                 <Text weight={500}>{t('cameraDirector.field.copySafeZone')}</Text>
                 <Switch

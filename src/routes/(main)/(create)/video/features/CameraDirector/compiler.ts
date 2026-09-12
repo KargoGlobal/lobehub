@@ -10,7 +10,14 @@
  * This module is pure (no React, no store) so it can be unit-tested exhaustively.
  */
 
-export type DirectorTemplate = 'background3d' | 'product3d';
+export type DirectorTemplate = 'background3d' | 'product3d' | 'onModel';
+
+/**
+ * How the attached product image reaches the model:
+ * - `startFrame`: image-to-video, the photo is literally frame one.
+ * - `reference`: reference-to-video, the photo is "Image 1" the model must match.
+ */
+export type ReferenceMode = 'startFrame' | 'reference';
 
 export type Placement = 'landscape' | 'vertical' | 'square';
 
@@ -93,6 +100,7 @@ export interface Shot {
 export type BackgroundStyle = 'orbit' | 'turntable' | 'drift' | 'tunnel';
 export type ProductStyle =
   'turntable360' | 'orbit360' | 'heroArc' | 'orbitThenDetail' | 'topDownReveal' | 'floatSpin';
+export type OnModelStyle = 'walkAndTurn' | 'heroOrbit' | 'detailReveal' | 'lifestyleHold';
 
 export interface StyleMeta<T extends string> {
   description: string;
@@ -156,6 +164,29 @@ export const PRODUCT_STYLES: StyleMeta<ProductStyle>[] = [
   },
 ];
 
+export const ON_MODEL_STYLES: StyleMeta<OnModelStyle>[] = [
+  {
+    description: 'Talent walks toward camera, stops and does a slow full turn. Camera locked.',
+    id: 'walkAndTurn',
+    label: 'Walk & turn',
+  },
+  {
+    description: 'Talent stands still while the camera orbits 180° at eye level.',
+    id: 'heroOrbit',
+    label: 'Hero orbit',
+  },
+  {
+    description: 'Slow push-in from a medium shot to the product detail on the talent.',
+    id: 'detailReveal',
+    label: 'Detail reveal',
+  },
+  {
+    description: 'Talent holds a natural pose with subtle motion. Camera trucks slowly.',
+    id: 'lifestyleHold',
+    label: 'Lifestyle hold',
+  },
+];
+
 export type AudioMode = 'silent' | 'ambient';
 
 export interface DirectorPlan {
@@ -173,12 +204,16 @@ export interface DirectorPlan {
   /** Brand colours / materials. */
   palette: string;
   placement: Placement;
+  /** How the attached image is used. Defaults to `startFrame`. */
+  referenceMode?: ReferenceMode;
   /** Ask for a loop where the final frame matches the opening frame. */
   seamlessLoop: boolean;
   shots: Shot[];
-  style: BackgroundStyle | ProductStyle;
+  style: BackgroundStyle | ProductStyle | OnModelStyle;
   /** Product description, or the 3D form for a background. */
   subject: string;
+  /** On-model only: who wears / uses the product. */
+  talent: string;
   template: DirectorTemplate;
 }
 
@@ -216,8 +251,58 @@ const shot = (partial: Partial<Shot> & Pick<Shot, 'camera' | 'subjectAction'>): 
 
 export const buildShotsForStyle = (
   template: DirectorTemplate,
-  style: BackgroundStyle | ProductStyle,
+  style: BackgroundStyle | ProductStyle | OnModelStyle,
 ): Shot[] => {
+  if (template === 'onModel') {
+    switch (style as OnModelStyle) {
+      case 'walkAndTurn': {
+        return [
+          shot({
+            camera: 'static',
+            framing: 'wide',
+            subjectAction:
+              'The talent walks toward the camera at a relaxed pace, stops at a medium-wide distance, then turns a slow, full 360° on the spot so the product is seen from every side, ending facing the camera.',
+          }),
+        ];
+      }
+      case 'heroOrbit': {
+        return [
+          shot({
+            camera: 'orbit',
+            degrees: 180,
+            framing: 'medium',
+            subjectAction:
+              'The talent stands still in a relaxed, natural pose with only subtle breathing and weight shifts; the product stays fully visible.',
+          }),
+        ];
+      }
+      case 'detailReveal': {
+        return [
+          shot({
+            camera: 'dolly-in',
+            framing: 'medium',
+            subjectAction:
+              'The talent holds a natural pose and angles the product toward the camera so the featured detail is clearly visible by the end of the shot.',
+          }),
+        ];
+      }
+      case 'lifestyleHold': {
+        return [
+          shot({
+            camera: 'truck-right',
+            framing: 'medium',
+            speed: 'very slow',
+            subjectAction:
+              'The talent holds a natural, candid pose with small, lifelike movements; the product stays in frame and undistorted.',
+          }),
+        ];
+      }
+      default: {
+        return [];
+      }
+    }
+  }
+
   if (template === 'background3d') {
     switch (style as BackgroundStyle) {
       case 'orbit': {
@@ -367,6 +452,27 @@ export const createDefaultPlan = (template: DirectorTemplate): DirectorPlan => {
       shots: buildShotsForStyle('background3d', 'turntable'),
       style: 'turntable',
       subject: 'a cluster of smooth abstract 3D ribbons and spheres',
+      talent: '',
+      template,
+    };
+  }
+
+  if (template === 'onModel') {
+    return {
+      audio: 'silent',
+      copySafeZone: false,
+      detail: '',
+      duration: 8,
+      environment: 'a bright, minimal studio with a warm grey seamless backdrop',
+      hasStartFrame: false,
+      lighting: 'soft, even daylight-balanced key light with gentle fill, no harsh shadows',
+      palette: 'neutral tones so the product colours read true',
+      placement: 'vertical',
+      seamlessLoop: false,
+      shots: buildShotsForStyle('onModel', 'walkAndTurn'),
+      style: 'walkAndTurn',
+      subject: '',
+      talent: 'an adult model with a neutral, relaxed expression',
       template,
     };
   }
@@ -386,6 +492,7 @@ export const createDefaultPlan = (template: DirectorTemplate): DirectorPlan => {
     shots: buildShotsForStyle('product3d', 'turntable360'),
     style: 'turntable360',
     subject: '',
+    talent: '',
     template,
   };
 };
@@ -431,7 +538,8 @@ export const allocateShots = (shots: Shot[], total: number): TimedShot[] => {
 // Prose
 // ---------------------------------------------------------------------------
 
-const subjectNoun = (template: DirectorTemplate) => (template === 'product3d' ? 'product' : 'form');
+const subjectNoun = (template: DirectorTemplate) =>
+  template === 'product3d' ? 'product' : template === 'onModel' ? 'talent' : 'form';
 
 const describeCamera = (s: Shot, template: DirectorTemplate, detail: string): string => {
   const noun = subjectNoun(template);
@@ -448,7 +556,7 @@ const describeCamera = (s: Shot, template: DirectorTemplate, detail: string): st
       return `The camera orbits ${s.degrees}° ${s.direction} around the ${noun} at a ${speed}, constant speed, keeping the same distance and height throughout and the ${noun} centred.${closure}`;
     }
     case 'dolly-in': {
-      const target = template === 'product3d' && detail ? detail : `the ${noun}`;
+      const target = template !== 'background3d' && detail ? detail : `the ${noun}`;
       return `The camera dollies in at a ${speed}, constant speed toward ${target}, keeping it centred; no zoom, no shake.`;
     }
     case 'dolly-out': {
@@ -513,12 +621,18 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
   const errors: string[] = [];
   const warnings: string[] = [];
   const isProduct = plan.template === 'product3d';
+  const isOnModel = plan.template === 'onModel';
+  const isProductLike = isProduct || isOnModel;
+  const referenceMode: ReferenceMode = plan.referenceMode ?? 'startFrame';
   const noun = subjectNoun(plan.template);
 
   // ---- validation ---------------------------------------------------------
   const subject = plan.subject.trim();
   if (!subject) {
-    errors.push(isProduct ? 'Describe the product.' : 'Describe the 3D form or environment.');
+    errors.push(isProductLike ? 'Describe the product.' : 'Describe the 3D form or environment.');
+  }
+  if (isOnModel && !plan.talent.trim()) {
+    errors.push('Describe the talent who wears or uses the product.');
   }
   if (
     !Number.isInteger(plan.duration) ||
@@ -544,6 +658,7 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
   const freeText = [
     plan.subject,
     plan.detail,
+    plan.talent,
     plan.environment,
     plan.lighting,
     plan.palette,
@@ -556,9 +671,11 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
     );
   }
 
-  if (isProduct && !plan.hasStartFrame) {
+  if (isProductLike && !plan.hasStartFrame) {
     warnings.push(
-      'Attach a product photo as the start frame so the product stays faithful to the real item.',
+      isOnModel
+        ? 'Attach a product photo as a reference so the talent wears the real item.'
+        : 'Attach a product photo as the start frame so the product stays faithful to the real item.',
     );
   }
   if (ctx.resolution && !/1080|2k/i.test(ctx.resolution)) {
@@ -580,18 +697,34 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
   const lines: string[] = [];
 
   if (plan.hasStartFrame) {
-    lines.push(
-      isProduct
-        ? `Reference: the opening frame shows the product. Keep its shape, proportions, materials, colours and label text exactly as shown; do not redesign it.`
-        : `Reference: the opening frame sets the scene. Keep its composition, colours and materials exactly as shown.`,
-    );
+    if (referenceMode === 'reference') {
+      lines.push(
+        isOnModel
+          ? `Reference: Image 1 is the product. The talent wears or uses exactly this item; keep its shape, proportions, materials, colours, pattern and label details exactly as shown in Image 1; do not redesign it.`
+          : `Reference: Image 1 is the product. Reproduce it exactly: shape, proportions, materials, colours and label text as shown in Image 1; do not redesign it.`,
+      );
+    } else {
+      lines.push(
+        isProductLike
+          ? `Reference: the opening frame shows the product. Keep its shape, proportions, materials, colours and label text exactly as shown; do not redesign it.`
+          : `Reference: the opening frame sets the scene. Keep its composition, colours and materials exactly as shown.`,
+      );
+    }
   }
 
-  lines.push(
-    isProduct
-      ? `Subject: ${subject || '[product]'}.${plan.detail.trim() ? ` Featured detail: ${plan.detail.trim()}.` : ''}`
-      : `Subject: ${subject || '[3D form]'}, rendered as clean 3D with physically accurate materials.`,
-  );
+  const detailNote = plan.detail.trim() ? ` Featured detail: ${plan.detail.trim()}.` : '';
+  if (isOnModel) {
+    lines.push(`Product: ${subject || '[product]'}.${detailNote}`);
+    lines.push(
+      `Talent: ${plan.talent.trim() || '[talent]'}, wearing or using the product naturally. Natural skin, no exaggerated expressions, no direct address to camera.`,
+    );
+  } else if (isProduct) {
+    lines.push(`Subject: ${subject || '[product]'}.${detailNote}`);
+  } else {
+    lines.push(
+      `Subject: ${subject || '[3D form]'}, rendered as clean 3D with physically accurate materials.`,
+    );
+  }
 
   const setParts = [
     plan.environment.trim() ? `Set: ${plan.environment.trim()}.` : '',
@@ -626,20 +759,28 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
     );
   }
 
-  const constraints = isProduct
+  const constraints = isOnModel
     ? [
-        'The product stays fully in frame, undistorted, with legible label text.',
-        'No hands, people or extra objects.',
+        'The product stays fully visible, undistorted and true to the reference for the whole clip.',
+        'One talent only; no other people, no extra products or props.',
+        'Natural, lifelike body motion; hands and face stay anatomically correct.',
         'No on-screen text, captions, subtitles or logos other than those on the product itself.',
         'No cuts, dissolves, fades or flashes other than the shots listed.',
-        'No lens flares or reflections covering the product.',
       ]
-    : [
-        'No people, characters, hands, products or recognisable objects.',
-        'No on-screen text, captions, subtitles, logos or watermarks.',
-        'No cuts, dissolves, fades or flashes; motion stays continuous.',
-        'No strobing or flicker; brightness stays stable across the clip.',
-      ];
+    : isProduct
+      ? [
+          'The product stays fully in frame, undistorted, with legible label text.',
+          'No hands, people or extra objects.',
+          'No on-screen text, captions, subtitles or logos other than those on the product itself.',
+          'No cuts, dissolves, fades or flashes other than the shots listed.',
+          'No lens flares or reflections covering the product.',
+        ]
+      : [
+          'No people, characters, hands, products or recognisable objects.',
+          'No on-screen text, captions, subtitles, logos or watermarks.',
+          'No cuts, dissolves, fades or flashes; motion stays continuous.',
+          'No strobing or flicker; brightness stays stable across the clip.',
+        ];
   lines.push(`Constraints: ${constraints.join(' ')}`);
 
   lines.push(
@@ -668,6 +809,6 @@ export const supportsCameraDirector = (model?: string | null): boolean => {
 export const recommendedSettings = (plan: DirectorPlan) => ({
   aspectRatio: PLACEMENT_ASPECT_RATIO[plan.placement],
   duration: plan.duration,
-  promptExtend: plan.template === 'product3d' ? 'quality' : 'balanced',
+  promptExtend: plan.template === 'background3d' ? 'balanced' : 'quality',
   resolution: '1080P',
 });

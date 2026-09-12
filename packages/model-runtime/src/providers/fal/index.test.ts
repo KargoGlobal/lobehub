@@ -1187,6 +1187,48 @@ describe('LobeFalAI', () => {
         expect(input.resolution).toBe('1080P');
       });
 
+      it('should build reference-to-video input with de-duplicated reference images', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3/reference-to-video',
+          params: {
+            aspectRatio: 'adaptive',
+            duration: 8,
+            imageUrl: 'https://cdn.example.com/pants.png',
+            imageUrls: ['https://cdn.example.com/pants.png', 'https://cdn.example.com/back.png'],
+            prompt: 'Image 1 is the product; the talent walks and turns',
+            promptExtend: 'fast',
+            resolution: '2K',
+            seed: 3,
+          },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('minimax/h3/reference-to-video');
+        expect(input).toEqual({
+          aspect_ratio: 'adaptive',
+          duration: 8,
+          prompt: 'Image 1 is the product; the talent walks and turns',
+          prompt_expansion_mode: 'fast',
+          reference_image_urls: [
+            'https://cdn.example.com/pants.png',
+            'https://cdn.example.com/back.png',
+          ],
+          resolution: '2K',
+          seed: 3,
+        });
+        expect(input).not.toHaveProperty('image_url');
+      });
+
+      it('should omit reference_image_urls when no references are attached', async () => {
+        await instance.createVideo({
+          model: 'minimax/h3/reference-to-video',
+          params: { prompt: 'text only' },
+        });
+        const [, { input }] = submitted();
+        expect(input).not.toHaveProperty('reference_image_urls');
+        expect(input.prompt_expansion_mode).toBe('balanced');
+      });
+
       it('should map a 401 to InvalidProviderAPIKey', async () => {
         const error = Object.assign(new Error('unauthorized'), { status: 401 });
         (mockFal.queue.submit as any).mockRejectedValue(error);

@@ -33,11 +33,48 @@ const isFalH3Endpoint = (endpoint: string) => /^minimax\/h3(?:-max)?(?:\/|$)/.te
 const H3_DURATION_MIN = 5;
 const H3_DURATION_MAX = 15;
 const H3_PROMPT_EXPANSION_MODES = new Set(['balanced', 'quality']);
+const H3_REFERENCE_PROMPT_EXPANSION_MODES = new Set(['fast', 'balanced', 'quality']);
+const H3_MAX_REFERENCE_IMAGES = 9;
+
+const clampH3Duration = (duration: unknown): number | undefined => {
+  if (typeof duration !== 'number' || !Number.isFinite(duration)) return undefined;
+  return Math.min(H3_DURATION_MAX, Math.max(H3_DURATION_MIN, Math.round(duration)));
+};
+
+// `minimax/h3/reference-to-video`: the product photo(s) are subject references
+// ("Image 1"...) rather than the literal first frame.
+const buildFalH3ReferenceInput = (
+  params: CreateVideoPayload['params'],
+): Record<string, unknown> => {
+  const input: Record<string, unknown> = { prompt: params.prompt };
+  const duration = clampH3Duration(params.duration);
+  if (duration !== undefined) input.duration = duration;
+  if (params.resolution) input.resolution = String(params.resolution).toUpperCase();
+  if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
+
+  const references = [params.imageUrl, ...(params.imageUrls ?? [])].filter(
+    (url): url is string => typeof url === 'string' && url.length > 0,
+  );
+  const unique = [...new Set(references)].slice(0, H3_MAX_REFERENCE_IMAGES);
+  if (unique.length > 0) input.reference_image_urls = unique;
+
+  input.prompt_expansion_mode =
+    typeof params.promptExtend === 'string' &&
+    H3_REFERENCE_PROMPT_EXPANSION_MODES.has(params.promptExtend)
+      ? params.promptExtend
+      : 'balanced';
+  if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+  return input;
+};
 
 const buildFalH3VideoInput = (
   endpoint: string,
   params: CreateVideoPayload['params'],
 ): { endpoint: string; input: Record<string, unknown> } => {
+  if (endpoint.endsWith('/reference-to-video')) {
+    return { endpoint, input: buildFalH3ReferenceInput(params) };
+  }
+
   const hasStartFrame = typeof params.imageUrl === 'string' && params.imageUrl.length > 0;
   const hasEndFrame = typeof params.endImageUrl === 'string' && params.endImageUrl.length > 0;
 
@@ -50,12 +87,8 @@ const buildFalH3VideoInput = (
   const input: Record<string, unknown> = { prompt: params.prompt };
 
   // Integer seconds, clamped to the fal schema range.
-  if (typeof params.duration === 'number' && Number.isFinite(params.duration)) {
-    input.duration = Math.min(
-      H3_DURATION_MAX,
-      Math.max(H3_DURATION_MIN, Math.round(params.duration)),
-    );
-  }
+  const duration = clampH3Duration(params.duration);
+  if (duration !== undefined) input.duration = duration;
   if (params.resolution) input.resolution = String(params.resolution).toUpperCase();
   // image-to-video has no aspect_ratio: the start frame decides it.
   if (!isImageToVideo && params.aspectRatio) input.aspect_ratio = params.aspectRatio;

@@ -360,7 +360,43 @@ const h3MaxParamsSchema: VideoModelParamsSchema = {
   seed: { default: null },
 };
 
+// MiniMax H3 reference-to-video via fal: up to 9 subject/style reference images,
+// addressed in the prompt as "Image 1", "Image 2"... Used by Auto-animate for
+// on-model / lifestyle concepts where the product must match a photo without
+// being the literal first frame.
+const h3ReferenceParamsSchema: VideoModelParamsSchema = {
+  aspectRatio: {
+    default: 'adaptive',
+    enum: ['adaptive', '21:9', '16:9', '4:3', '1:1', '3:4', '9:16'],
+  },
+  duration: { default: 8, max: 15, min: 5, step: 1 },
+  imageUrls: { default: [], maxCount: 9 },
+  prompt: { default: '' },
+  promptExtend: { default: 'balanced', enum: ['fast', 'balanced', 'quality'] },
+  // 480P/768P are native; 2K/4K upscale a 768P base.
+  resolution: {
+    default: '2K',
+    enum: ['480P', '768P', '2K', '4K'],
+  },
+  seed: { default: null },
+};
+
 const falH3VideoModels: AIVideoModelCard[] = [
+  {
+    description:
+      'MiniMax H3 reference-to-video served via fal: up to 9 reference images the clip must match — for on-model, lifestyle and in-hand product shots that stay faithful to the real item.',
+    displayName: 'MiniMax H3 Reference',
+    enabled: true,
+    id: 'minimax/h3/reference-to-video',
+    organization: 'MiniMax',
+    parameters: h3ReferenceParamsSchema,
+    pricing: {
+      // fal list price at the 2K default; 768P is 0.06/s, 4K 0.16/s.
+      units: [{ name: 'videoGeneration', rate: 0.13, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-02',
+    type: 'video',
+  },
   {
     description:
       'MiniMax H3 Max served via fal: strong prompt adherence and temporal stability with native 1080p, 5–15s clips, start/end-frame control and prompt-driven camera moves — built for product spins and 3D background loops.',
