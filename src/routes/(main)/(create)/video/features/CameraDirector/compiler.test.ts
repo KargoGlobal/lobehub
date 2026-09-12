@@ -11,6 +11,7 @@ import {
   MIN_SHOT_SECONDS,
   PRODUCT_STYLES,
   recommendedSettings,
+  summarizeDirectorPrompt,
   supportsCameraDirector,
 } from './compiler';
 
@@ -291,5 +292,52 @@ describe('recommendedSettings', () => {
       aspectRatio: '1:1',
       promptExtend: 'balanced',
     });
+  });
+});
+
+describe('summarizeDirectorPrompt', () => {
+  it('returns null for free-form prompts', () => {
+    expect(summarizeDirectorPrompt('a cat on a skateboard')).toBeNull();
+    expect(summarizeDirectorPrompt('')).toBeNull();
+  });
+
+  it('summarises a two-shot product ad with a start frame', () => {
+    const plan = productPlan({
+      duration: 10,
+      hasStartFrame: true,
+      shots: buildShotsForStyle('product3d', 'orbitThenDetail'),
+      style: 'orbitThenDetail',
+    });
+    const summary = summarizeDirectorPrompt(compilePlan(plan).prompt)!;
+    expect(summary.recipe).toBe('product');
+    expect(summary.reference).toBe('startFrame');
+    expect(summary.subject).toBe(
+      'a 330ml matte black aluminium energy drink can with a silver pull tab',
+    );
+    expect(summary.duration).toBe(10);
+    expect(summary.shots).toEqual([
+      { move: 'Orbit 180° clockwise', range: '0–6s' },
+      { move: 'Dolly in', range: '6–10s' },
+    ]);
+  });
+
+  it('summarises a turntable loop background and an on-model reference clip', () => {
+    const bg = summarizeDirectorPrompt(compilePlan(backgroundPlan()).prompt)!;
+    expect(bg.recipe).toBe('background');
+    expect(bg.reference).toBeNull();
+    expect(bg.subject).toBe('a cluster of smooth abstract 3D ribbons and spheres');
+    expect(bg.shots).toEqual([{ move: 'Turntable 360°, locked off', range: '0–10s' }]);
+
+    const onModel: DirectorPlan = {
+      ...createDefaultPlan('onModel'),
+      hasStartFrame: true,
+      referenceMode: 'reference',
+      subject: 'white tennis dress',
+    };
+    const om = summarizeDirectorPrompt(compilePlan(onModel).prompt)!;
+    expect(om.recipe).toBe('onModel');
+    expect(om.reference).toBe('reference');
+    expect(om.subject).toBe('white tennis dress');
+    expect(om.shots).toEqual([{ move: 'Walk & turn, locked off', range: '0–8s' }]);
   });
 });

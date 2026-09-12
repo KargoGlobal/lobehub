@@ -1,7 +1,7 @@
 'use client';
 
 import { ModelIcon } from '@lobehub/icons';
-import { ActionIconGroup, Block, Flexbox, Markdown } from '@lobehub/ui';
+import { ActionIconGroup, Block, Flexbox } from '@lobehub/ui';
 import { Tag, Text, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import dayjs from 'dayjs';
@@ -21,6 +21,7 @@ import { downloadFile } from '@/utils/client/downloadFile';
 
 import VideoErrorItem from './VideoErrorItem';
 import VideoLoadingItem from './VideoLoadingItem';
+import VideoPromptSummary from './VideoPromptSummary';
 import VideoReferenceFrames from './VideoReferenceFrames';
 import VideoSuccessItem from './VideoSuccessItem';
 
@@ -244,7 +245,7 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
             imageUrls={batch.config?.imageUrls}
           />
         )}
-        <Markdown variant={'chat'}>{batch.prompt}</Markdown>
+        <VideoPromptSummary prompt={batch.prompt} />
       </Flexbox>
       {renderContent()}
       <Flexbox

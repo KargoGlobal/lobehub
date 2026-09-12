@@ -812,3 +812,101 @@ export const recommendedSettings = (plan: DirectorPlan) => ({
   promptExtend: plan.template === 'background3d' ? 'balanced' : 'quality',
   resolution: '1080P',
 });
+
+// ---------------------------------------------------------------------------
+// Feed summary — turn a compiled prompt back into a one-glance card
+// ---------------------------------------------------------------------------
+
+export interface DirectorShotSummary {
+  /** Short camera / subject-motion label, e.g. "Orbit 180° clockwise". */
+  move: string;
+  range: string;
+}
+
+export interface DirectorPromptSummary {
+  /** Total seconds from the last timeline block. */
+  duration: number | null;
+  recipe: 'product' | 'onModel' | 'background';
+  /** How the attached image was used, if the prompt mentions one. */
+  reference: 'reference' | 'startFrame' | null;
+  shots: DirectorShotSummary[];
+  /** Product / form description, trimmed to a single short sentence. */
+  subject: string;
+}
+
+const CAMERA_PATTERNS: [RegExp, (m: RegExpMatchArray) => string][] = [
+  [/The camera orbits (\d+)° (clockwise|counter-clockwise)/, (m) => `Orbit ${m[1]}° ${m[2]}`],
+  [/The camera dollies in/, () => 'Dolly in'],
+  [/The camera dollies out/, () => 'Dolly out'],
+  [/The camera cranes up/, () => 'Crane up'],
+  [/The camera cranes down/, () => 'Crane down'],
+  [/The camera trucks (left|right)/, (m) => `Truck ${m[1]}`],
+  [/The camera pans (left|right)/, (m) => `Pan ${m[1]}`],
+  [/The camera tilts (up|down)/, (m) => `Tilt ${m[1]}`],
+  [/The lens zooms (in|out)/, (m) => `Zoom ${m[1]}`],
+];
+
+const SUBJECT_MOTION_PATTERNS: [RegExp, string][] = [
+  [/rotates one full 360°/, 'Turntable 360°'],
+  [/rotates 90°/, 'Turn 90°'],
+  [/levitates/, 'Float & spin'],
+  [/walks toward the camera.*full 360°/, 'Walk & turn'],
+];
+
+const describeShotLine = (line: string): string => {
+  const motion = SUBJECT_MOTION_PATTERNS.find(([re]) => re.test(line))?.[1];
+  let camera: string | undefined;
+  for (const [re, label] of CAMERA_PATTERNS) {
+    const m = line.match(re);
+    if (m) {
+      camera = label(m);
+      break;
+    }
+  }
+  if (!camera && /The camera is locked off/.test(line))
+    camera = motion ? 'locked off' : 'Locked off';
+
+  if (motion && camera) return `${motion}, ${camera}`;
+  return motion ?? camera ?? 'Shot';
+};
+
+/**
+ * Recognise a prompt produced by `compilePlan` and reduce it to a compact
+ * summary for the generation feed. Returns null for free-form prompts.
+ */
+export const summarizeDirectorPrompt = (prompt: string): DirectorPromptSummary | null => {
+  if (!prompt || !/^Timeline:$/m.test(prompt) || !/^Camera rules:/m.test(prompt)) return null;
+
+  const lines = prompt.split('\n');
+  const recipe: DirectorPromptSummary['recipe'] = lines.some((l) => l.startsWith('Talent:'))
+    ? 'onModel'
+    : lines.some((l) => /^Subject: .*rendered as clean 3D/.test(l))
+      ? 'background'
+      : 'product';
+
+  const subjectLine = lines.find((l) => /^(?:Product|Subject): /.test(l)) ?? '';
+  const subject = subjectLine
+    .replace(/^(Product|Subject): /, '')
+    .replace(/, rendered as clean 3D.*$/, '')
+    .replace(/\. Featured detail:.*$/, '')
+    .replace(/\.$/, '')
+    .trim();
+
+  const referenceLine = lines.find((l) => l.startsWith('Reference: '));
+  const reference: DirectorPromptSummary['reference'] = referenceLine
+    ? referenceLine.includes('Image 1')
+      ? 'reference'
+      : 'startFrame'
+    : null;
+
+  const shots: DirectorShotSummary[] = [];
+  let duration: number | null = null;
+  for (const line of lines) {
+    const m = line.match(/^(\d+)–(\d+)s: (.*)$/);
+    if (!m) continue;
+    shots.push({ move: describeShotLine(m[3]), range: `${m[1]}–${m[2]}s` });
+    duration = Number(m[2]);
+  }
+
+  return { duration, recipe, reference, shots, subject };
+};
