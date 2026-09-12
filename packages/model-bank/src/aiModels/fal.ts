@@ -289,6 +289,59 @@ const falImageModels: AIImageModelCard[] = [
     releasedAt: '2026-09-09',
     type: 'image',
   },
+  {
+    description:
+      'fal Image Editing Reframe changes an image to a new aspect ratio while keeping the subject composition intact. Used for one-click resizing to ad placement ratios on existing or uploaded images.',
+    displayName: 'Auto-Resize',
+    enabled: false,
+    id: 'fal-ai/image-editing/reframe',
+    parameters: {
+      aspectRatio: {
+        default: '1:1',
+        enum: ['21:9', '16:9', '4:3', '3:2', '1:1', '2:3', '3:4', '9:16', '9:21'],
+      },
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
+  {
+    description:
+      'Bria Product Shot places a product photo into a new, described scene, generating a lifestyle-style shot. Used for one-click product placement on existing or uploaded product images.',
+    displayName: 'Product Scene',
+    enabled: false,
+    id: 'fal-ai/bria/product-shot',
+    organization: 'Bria',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
+  {
+    description:
+      'IC-Light V2 relights an existing image to match a described light source and direction, without changing the subject. Used for one-click relighting on existing or uploaded images.',
+    displayName: 'Relight',
+    enabled: false,
+    id: 'fal-ai/iclight-v2',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.1, strategy: 'fixed', unit: 'megapixel' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
 ];
 
 const falVideoParamsSchema = {

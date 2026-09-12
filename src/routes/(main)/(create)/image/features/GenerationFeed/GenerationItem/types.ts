@@ -15,6 +15,8 @@ export interface ActionButtonsProps {
   seedTooltip?: string;
   showCopySeed?: boolean;
   showDownload?: boolean;
+  /** Source image for the resize/place/relight tool; omit to hide it. */
+  sourceUrl?: string;
 }
 
 export interface SuccessStateProps {

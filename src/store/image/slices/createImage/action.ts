@@ -15,6 +15,18 @@ const UTILITY_TOOLS = {
 
 export type UtilityTool = keyof typeof UTILITY_TOOLS;
 
+/**
+ * A one-off edit call whose params vary per invocation (resize target, scene
+ * description, relight prompt) — unlike `UTILITY_TOOLS`, which is a fixed
+ * model+prompt lookup for zero-parameter tools (remove background, upscale).
+ */
+export interface EditImageRequest {
+  model: string;
+  /** Sent to fal as-is; must include `prompt` (server requires it, even when
+   * the target endpoint ignores it — it's what shows as the batch label). */
+  params: Record<string, unknown>;
+}
+
 type Setter = StoreSetter<ImageStore>;
 export const createCreateImageSlice = (set: Setter, get: () => ImageStore, _api?: unknown) =>
   new CreateImageActionImpl(set, get, _api);
@@ -155,6 +167,52 @@ export class CreateImageActionImpl {
       throw error;
     } finally {
       this.#set({ isCreating: false }, false, 'createUtilityImage/end');
+    }
+  }
+
+  /**
+   * Runs a single-image edit endpoint (resize/reframe, product-scene
+   * placement, relight, ...) with caller-supplied params. Mirrors
+   * `createUtilityImage`'s topic bookkeeping; differs only in that the model
+   * and params come from the call site instead of a fixed lookup, since these
+   * tools take a parameter the zero-config utilities don't.
+   */
+  async createEditedImage(sourceImageUrl: string, request: EditImageRequest) {
+    this.#set({ isCreating: true }, false, 'createEditedImage/start');
+
+    const store = this.#get();
+    const activeGenerationTopicId = generationTopicSelectors.activeGenerationTopicId(store);
+    const { createGenerationTopic, switchGenerationTopic, setTopicBatchLoaded } = store;
+    const { model, params } = request;
+
+    let finalTopicId = activeGenerationTopicId;
+    let isNewTopic = false;
+
+    if (!activeGenerationTopicId) {
+      isNewTopic = true;
+      finalTopicId = await createGenerationTopic([String(params.prompt ?? '')]);
+      setTopicBatchLoaded(finalTopicId);
+      switchGenerationTopic(finalTopicId);
+    }
+
+    try {
+      await imageService.createImage({
+        generationTopicId: finalTopicId!,
+        provider: 'fal',
+        model,
+        imageNum: 1,
+        params: { imageUrl: sourceImageUrl, ...params } as any,
+      });
+
+      if (!isNewTopic) {
+        await this.#get().refreshGenerationBatches();
+      }
+    } catch (error) {
+      handleGenerationPromptModerationError(error);
+      handleLobeHubModelDeprecatedError(error);
+      throw error;
+    } finally {
+      this.#set({ isCreating: false }, false, 'createEditedImage/end');
     }
   }
 

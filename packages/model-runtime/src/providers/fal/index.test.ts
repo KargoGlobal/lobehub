@@ -208,6 +208,25 @@ describe('LobeFalAI', () => {
       });
     });
 
+    it('should map aspectRatio to aspect_ratio (regression: FLUX Kontext / Imagen 4 picker had no effect)', async () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: { images: [{ url: 'https://example.com/image.jpg' }] },
+      };
+      mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+      const payload: CreateImagePayload = {
+        model: 'flux-pro/kontext',
+        params: { prompt: 'Test image', aspectRatio: '16:9' } as any,
+      };
+
+      await instance.createImage(payload);
+
+      const [, { input }] = mockFal.subscribe.mock.calls[0] as any;
+      expect(input).toHaveProperty('aspect_ratio', '16:9');
+      expect(input).not.toHaveProperty('aspectRatio');
+    });
+
     it('should map imageUrls parameter to image_urls', async () => {
       // Arrange
       const mockImageResponse = {

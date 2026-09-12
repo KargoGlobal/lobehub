@@ -141,6 +141,10 @@ export class LobeFalAI implements LobeRuntimeAI {
       ['imageUrl', 'image_url'],
       ['imageUrls', 'image_urls'],
       ['size', 'image_size'],
+      // Was previously unmapped, so FLUX.1 Kontext [pro] and Imagen 4's
+      // `aspectRatio` picker silently had no effect on the fal call (fal's
+      // schema uses `aspect_ratio`, not the camelCase model-bank key).
+      ['aspectRatio', 'aspect_ratio'],
     ]);
 
     const defaultInput: Record<string, unknown> = {

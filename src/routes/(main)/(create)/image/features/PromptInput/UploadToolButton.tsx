@@ -11,6 +11,7 @@ import {
   type ReferenceUploadSlot,
   useReferenceImageUpload,
 } from '@/routes/(main)/(create)/features/GenerationInput/useReferenceImageUpload';
+import ImageEditToolButton from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ImageEditToolButton';
 import { useImageStore } from '@/store/image';
 import { type UtilityTool } from '@/store/image/slices/createImage/action';
 
@@ -109,6 +110,7 @@ const UploadToolButton = memo(() => {
             title={t('generation.actions.upscale')}
             onClick={() => runTool('upscale')}
           />
+          <ImageEditToolButton sourceUrl={uploadedUrl} onApplied={() => setUploadedUrl(null)} />
           <ActionIcon
             aria-label={t('tools.clear')}
             icon={X}
