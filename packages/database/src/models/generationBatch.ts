@@ -220,6 +220,7 @@ export class GenerationBatchModel {
 
         const batchUser = (batch as GenerationBatchWithGenerations & { user?: BatchUser }).user;
         return {
+          approvalStatus: batch.approvalStatus,
           config,
           createdAt: batch.createdAt,
           creator: {
@@ -305,5 +306,27 @@ export class GenerationBatchModel {
       deletedBatch,
       filesToDelete,
     };
+  }
+
+  /**
+   * Set a batch's review status. Router-layer callers are responsible for the
+   * creator-or-workspace-owner authorization check (see
+   * `assertWorkspaceRowManageable`); `this.ownership()` only re-confirms the
+   * row is visible to the caller (own row in personal mode, or any row in a
+   * shared workspace).
+   */
+  async setApprovalStatus(
+    id: string,
+    approvalStatus: GenerationBatchItem['approvalStatus'],
+  ): Promise<GenerationBatchItem | undefined> {
+    log('Setting approval status for batch %s to %s', id, approvalStatus);
+
+    const [updatedBatch] = await this.db
+      .update(generationBatches)
+      .set({ approvalStatus, updatedAt: new Date() })
+      .where(and(eq(generationBatches.id, id), this.ownership()))
+      .returning();
+
+    return updatedBatch;
   }
 }

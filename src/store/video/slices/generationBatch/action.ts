@@ -9,7 +9,7 @@ import { generationService } from '@/services/generation';
 import { generationBatchService } from '@/services/generationBatch';
 import { type StoreSetter } from '@/store/types';
 import { AsyncTaskStatus } from '@/types/asyncTask';
-import { type GenerationBatch } from '@/types/generation';
+import { type GenerationBatch, type GenerationBatchApprovalStatus } from '@/types/generation';
 import { setNamespace } from '@/utils/storeDebug';
 
 import { type VideoStore } from '../../store';
@@ -70,6 +70,30 @@ export class GenerationBatchActionImpl {
     );
 
     await generationBatchService.deleteGenerationBatch(batchId);
+    await refreshGenerationBatches();
+  };
+
+  /**
+   * Set a batch's review status. Optimistically updates the feed, then
+   * persists and refreshes — same shape as `internal_deleteGenerationBatch`.
+   */
+  setBatchApprovalStatus = async (
+    batchId: string,
+    approvalStatus: GenerationBatchApprovalStatus,
+  ): Promise<void> => {
+    const { activeGenerationTopicId, internal_dispatchGenerationBatch, refreshGenerationBatches } =
+      this.#get();
+
+    if (!activeGenerationTopicId) return;
+
+    // Optimistic update
+    internal_dispatchGenerationBatch(
+      activeGenerationTopicId,
+      { id: batchId, type: 'updateBatch', value: { approvalStatus } },
+      'setBatchApprovalStatus',
+    );
+
+    await generationBatchService.setBatchApprovalStatus(batchId, approvalStatus);
     await refreshGenerationBatches();
   };
 

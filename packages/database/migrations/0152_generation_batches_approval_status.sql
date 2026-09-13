@@ -1,0 +1,2 @@
+ALTER TABLE "generation_batches" ADD COLUMN "approval_status" text DEFAULT 'pending' NOT NULL;--> statement-breakpoint
+CREATE INDEX "generation_batches_topic_id_approval_status_idx" ON "generation_batches" USING btree ("generation_topic_id","approval_status");

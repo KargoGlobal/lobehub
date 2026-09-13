@@ -1,6 +1,10 @@
 import { type GenerationBatchItem } from '@/database/schemas';
 import { lambdaClient } from '@/libs/trpc/client';
-import { type Generation, type GenerationBatch } from '@/types/generation';
+import {
+  type Generation,
+  type GenerationBatch,
+  type GenerationBatchApprovalStatus,
+} from '@/types/generation';
 
 type GenerationBatchWithAsyncTaskId = GenerationBatch & {
   generations: (Generation & { asyncTaskId?: string | null })[];
@@ -22,6 +26,19 @@ class GenerationBatchService {
    */
   async deleteGenerationBatch(batchId: string): Promise<GenerationBatchItem | undefined> {
     return lambdaClient.generationBatch.deleteGenerationBatch.mutate({ batchId });
+  }
+
+  /**
+   * Set a generation batch's review status.
+   */
+  async setBatchApprovalStatus(
+    batchId: string,
+    approvalStatus: GenerationBatchApprovalStatus,
+  ): Promise<GenerationBatchItem | undefined> {
+    return lambdaClient.generationBatch.setBatchApprovalStatus.mutate({
+      approvalStatus,
+      batchId,
+    });
   }
 }
 

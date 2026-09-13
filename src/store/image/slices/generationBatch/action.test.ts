@@ -23,6 +23,7 @@ vi.mock('@/services/generationBatch', () => ({
   generationBatchService: {
     deleteGenerationBatch: vi.fn(),
     getGenerationBatches: vi.fn(),
+    setBatchApprovalStatus: vi.fn(),
   },
 }));
 
@@ -319,6 +320,44 @@ describe('GenerationBatchAction', () => {
       );
       expect(generationBatchService.deleteGenerationBatch).toHaveBeenCalledWith(batchId);
       expect(refreshSpy).toHaveBeenCalled();
+    });
+  });
+
+  describe('setBatchApprovalStatus', () => {
+    it('should optimistically update the batch then persist and refresh', async () => {
+      const topicId = 'gt_topic_1';
+      const batchId = 'gb_batch_1';
+      useImageStore.setState({ activeGenerationTopicId: topicId });
+
+      const { result } = renderHook(() => useImageStore());
+
+      const dispatchSpy = vi.spyOn(result.current, 'internal_dispatchGenerationBatch');
+      const refreshSpy = vi.spyOn(result.current, 'refreshGenerationBatches');
+
+      await act(async () => {
+        await result.current.setBatchApprovalStatus(batchId, 'approved');
+      });
+
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        topicId,
+        { type: 'updateBatch', id: batchId, value: { approvalStatus: 'approved' } },
+        expect.anything(),
+      );
+      expect(generationBatchService.setBatchApprovalStatus).toHaveBeenCalledWith(
+        batchId,
+        'approved',
+      );
+      expect(refreshSpy).toHaveBeenCalled();
+    });
+
+    it('should do nothing without an active topic', async () => {
+      const { result } = renderHook(() => useImageStore());
+
+      await act(async () => {
+        await result.current.setBatchApprovalStatus('gb_batch_1', 'approved');
+      });
+
+      expect(generationBatchService.setBatchApprovalStatus).not.toHaveBeenCalled();
     });
   });
 
