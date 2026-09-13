@@ -12,6 +12,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import useRenderBusinessVideoBatchItem from '@/business/client/hooks/useRenderBusinessVideoBatchItem';
+import { AdSpecValidatorAction } from '@/features/AdSpecValidator';
 import { GenerationInvalidAPIKey } from '@/routes/(main)/(create)/features/GenerationInput';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useVideoStore } from '@/store/video';
@@ -292,6 +293,13 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
         </Flexbox>
       </Flexbox>
       <Flexbox horizontal align={'center'} className={styles.batchActions}>
+        {generation.asset && (generation.asset.width || generation.asset.height) && (
+          <AdSpecValidatorAction
+            duration={'duration' in generation.asset ? generation.asset.duration : undefined}
+            height={generation.asset.height}
+            width={generation.asset.width}
+          />
+        )}
         <ActionIconGroup
           items={[
             {

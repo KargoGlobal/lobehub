@@ -210,4 +210,16 @@ export default {
   'brandKit.field.toneOfVoice': 'Voice & tone',
   'brandKit.field.toneOfVoicePlaceholder':
     'e.g. Confident and plain-spoken. Short sentences. Never salesy, never exclamation marks.',
+  'adSpecValidator.title': 'Ad-size / CTV spec check',
+  'adSpecValidator.assetSummary': '{{width}}×{{height}}px',
+  'adSpecValidator.assetSummaryWithDuration': '{{width}}×{{height}}px · {{duration}}s',
+  'adSpecValidator.targetLabel': 'Target format',
+  'adSpecValidator.autoOption': 'Auto — closest matches',
+  'adSpecValidator.noMatches': 'No standard format closely matches this asset.',
+  'adSpecValidator.status.pass': 'Pass',
+  'adSpecValidator.status.warn': 'Close',
+  'adSpecValidator.status.fail': 'Fail',
+  'adSpecValidator.category.display': 'Display',
+  'adSpecValidator.category.ctv': 'CTV / Video',
+  'adSpecValidator.category.social': 'Social',
 };
