@@ -60,24 +60,6 @@ export const huanyuanImageParamsSchema: ModelParamsSchema = {
 const falImageModels: AIImageModelCard[] = [
   {
     description:
-      'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',
-    displayName: 'Nano Banana 2',
-    enabled: true,
-    id: 'fal-ai/nano-banana-2',
-    parameters: {
-      imageUrls: { default: [], maxCount: 10 },
-      prompt: {
-        default: '',
-      },
-    },
-    pricing: {
-      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
-    },
-    releasedAt: '2026-06-15',
-    type: 'image',
-  },
-  {
-    description:
       'OpenAI’s GPT Image 2 model served via fal, with strong prompt adherence, text rendering, and conversational image editing.',
     displayName: 'GPT Image 2',
     enabled: true,
@@ -93,6 +75,24 @@ const falImageModels: AIImageModelCard[] = [
       units: [{ name: 'imageGeneration', rate: 0.07, strategy: 'fixed', unit: 'image' }],
     },
     releasedAt: '2026-05-20',
+    type: 'image',
+  },
+  {
+    description:
+      'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',
+    displayName: 'Nano Banana 2',
+    enabled: true,
+    id: 'fal-ai/nano-banana-2',
+    parameters: {
+      imageUrls: { default: [], maxCount: 10 },
+      prompt: {
+        default: '',
+      },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-06-15',
     type: 'image',
   },
   {
@@ -340,6 +340,56 @@ const falImageModels: AIImageModelCard[] = [
       units: [{ name: 'imageGeneration', rate: 0.1, strategy: 'fixed', unit: 'megapixel' }],
     },
     releasedAt: '2026-09-12',
+    type: 'image',
+  },
+  {
+    description:
+      "Bria Eraser removes whatever is under a painted mask and reconstructs the background. Used by the mask editor's Erase mode on existing or uploaded images.",
+    displayName: 'Erase',
+    enabled: false,
+    id: 'fal-ai/bria/eraser',
+    organization: 'Bria',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.04, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-13',
+    type: 'image',
+  },
+  {
+    description:
+      "FLUX.1 [pro] Fill regenerates the painted mask region from a text prompt (inpainting). Used by the mask editor's Replace mode on existing or uploaded images.",
+    displayName: 'Replace',
+    enabled: false,
+    id: 'fal-ai/flux-pro/v1/fill',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.05, strategy: 'fixed', unit: 'megapixel' }],
+    },
+    releasedAt: '2026-09-13',
+    type: 'image',
+  },
+  {
+    description:
+      "FASHN Try-On v1.6 dresses a photographed person in a garment photo, preserving the garment's pattern and details. Used by the Try-on tool on existing or uploaded garment images.",
+    displayName: 'Try-on',
+    enabled: false,
+    id: 'fal-ai/fashn/tryon/v1.6',
+    organization: 'FASHN',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.075, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-13',
     type: 'image',
   },
 ];

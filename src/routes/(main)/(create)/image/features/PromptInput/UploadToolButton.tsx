@@ -12,6 +12,7 @@ import {
   useReferenceImageUpload,
 } from '@/routes/(main)/(create)/features/GenerationInput/useReferenceImageUpload';
 import ImageEditToolButton from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ImageEditToolButton';
+import MaskEditToolButton from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/MaskEditor/MaskEditToolButton';
 import { useImageStore } from '@/store/image';
 import { type UtilityTool } from '@/store/image/slices/createImage/action';
 
@@ -111,6 +112,7 @@ const UploadToolButton = memo(() => {
             onClick={() => runTool('upscale')}
           />
           <ImageEditToolButton sourceUrl={uploadedUrl} onApplied={() => setUploadedUrl(null)} />
+          <MaskEditToolButton sourceUrl={uploadedUrl} onApplied={() => setUploadedUrl(null)} />
           <ActionIcon
             aria-label={t('tools.clear')}
             icon={X}

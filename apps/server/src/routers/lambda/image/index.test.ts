@@ -384,6 +384,33 @@ describe('imageRouter', () => {
       );
     });
 
+    it('should convert edit-tool image fields (mask_url, model_image, garment_image) to keys', async () => {
+      mockGetKeyFromFullUrl.mockImplementation(async (url: string) =>
+        url.replace('https://s3.amazonaws.com/bucket/', ''),
+      );
+
+      const ctx = createMockCtx();
+      const input = createDefaultInput({
+        params: {
+          garment_image: 'https://s3.amazonaws.com/bucket/files/pants.png',
+          imageUrl: 'https://s3.amazonaws.com/bucket/files/pants.png',
+          mask_url: 'https://s3.amazonaws.com/bucket/files/mask.png',
+          model_image: 'https://s3.amazonaws.com/bucket/files/person.png',
+          prompt: 'Erase painted area',
+        } as any,
+      });
+
+      const caller = imageRouter.createCaller(ctx);
+      // Passes the no-URLs-in-config guard only if every field was converted.
+      await expect(caller.createImage(input)).resolves.toBeDefined();
+      expect(mockGetKeyFromFullUrl).toHaveBeenCalledWith(
+        'https://s3.amazonaws.com/bucket/files/mask.png',
+      );
+      expect(mockGetKeyFromFullUrl).toHaveBeenCalledWith(
+        'https://s3.amazonaws.com/bucket/files/person.png',
+      );
+    });
+
     it('should throw error when single imageUrl conversion fails and URL remains', async () => {
       mockGetKeyFromFullUrl.mockRejectedValue(new Error('Conversion failed'));
 

@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { useFileStore } from '@/store/file';
 import { useImageStore } from '@/store/image';
 
 import ImageEditToolButton from './ImageEditToolButton';
@@ -33,6 +34,12 @@ const DICT: Record<string, string> = {
   'editTool.mode.place': 'Place',
   'editTool.mode.relight': 'Relight',
   'editTool.mode.resize': 'Resize',
+  'editTool.mode.tryon': 'Try-on',
+  'editTool.tryon.category.auto': 'Auto-detect',
+  'editTool.tryon.category.bottoms': 'Bottoms',
+  'editTool.tryon.category.one-pieces': 'One-piece',
+  'editTool.tryon.category.tops': 'Tops',
+  'editTool.tryon.upload': 'Upload person photo',
   'editTool.place.placeholder': 'e.g. on a marble kitchen counter with soft morning light',
   'editTool.place.presetStudio': 'on a plain white studio backdrop with soft even light',
   'editTool.place.presetStudioLabel': 'Studio',
@@ -55,11 +62,14 @@ vi.mock('react-i18next', () => ({
 }));
 
 const createEditedImage = vi.fn().mockResolvedValue(undefined);
+const uploadWithProgress = vi.fn().mockResolvedValue({ url: 'https://cdn.example.com/person.png' });
 
 describe('ImageEditToolButton', () => {
   beforeEach(() => {
     createEditedImage.mockClear();
+    uploadWithProgress.mockClear();
     useImageStore.setState({ createEditedImage: createEditedImage as any });
+    useFileStore.setState({ uploadWithProgress: uploadWithProgress as any });
   });
 
   it('applies a resize request with the selected aspect ratio', async () => {
@@ -125,6 +135,37 @@ describe('ImageEditToolButton', () => {
     expect(createEditedImage).toHaveBeenCalledWith('https://cdn.example.com/a.png', {
       model: 'fal-ai/iclight-v2',
       params: { prompt: 'warm golden-hour light from a low angle' },
+    });
+  });
+
+  it('Try-on blocks Apply until a person photo is uploaded, then sends the fashn request', async () => {
+    render(<ImageEditToolButton sourceUrl={'https://cdn.example.com/pants.png'} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Try-on' }));
+    const apply = screen.getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+
+    const file = new File(['(binary)'], 'person.jpg', { type: 'image/jpeg' });
+    const input = screen.getByTestId('tryon-model-input') as HTMLInputElement;
+    await act(async () => {
+      fireEvent.change(input, { target: { files: [file] } });
+    });
+    await waitFor(() => expect(uploadWithProgress).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apply).not.toBeDisabled());
+
+    fireEvent.click(apply);
+    await waitFor(() => expect(createEditedImage).toHaveBeenCalledTimes(1));
+    expect(createEditedImage).toHaveBeenCalledWith('https://cdn.example.com/pants.png', {
+      model: 'fal-ai/fashn/tryon/v1.6',
+      params: {
+        category: 'auto',
+        garment_image: 'https://cdn.example.com/pants.png',
+        mode: 'quality',
+        model_image: 'https://cdn.example.com/person.png',
+        num_samples: 1,
+        output_format: 'png',
+        prompt: 'Try on (auto)',
+      },
     });
   });
 

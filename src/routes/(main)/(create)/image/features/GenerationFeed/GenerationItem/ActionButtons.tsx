@@ -8,6 +8,7 @@ import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ImageEditToolButton from './ImageEditToolButton';
+import MaskEditToolButton from './MaskEditor/MaskEditToolButton';
 import { styles } from './styles';
 import { type ActionButtonsProps } from './types';
 
@@ -32,6 +33,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
     return (
       <Flexbox className={styles.generationActionButton} gap={4}>
         {sourceUrl && <ImageEditToolButton sourceUrl={sourceUrl} />}
+        {sourceUrl && <MaskEditToolButton sourceUrl={sourceUrl} />}
         <ActionIconGroup
           actionIconProps={actionIconProps}
           horizontal={false}

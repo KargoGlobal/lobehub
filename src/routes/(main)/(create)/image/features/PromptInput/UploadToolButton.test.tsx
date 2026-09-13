@@ -24,6 +24,10 @@ vi.mock(
   '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ImageEditToolButton',
   () => ({ default: () => null }),
 );
+vi.mock(
+  '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/MaskEditor/MaskEditToolButton',
+  () => ({ default: () => null }),
+);
 
 describe('UploadToolButton', () => {
   it('uploads a file then runs the chosen tool against the uploaded url', async () => {

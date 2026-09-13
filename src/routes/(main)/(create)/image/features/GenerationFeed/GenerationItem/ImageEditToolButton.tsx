@@ -2,15 +2,18 @@
 
 import { Flexbox, Input, TextArea } from '@lobehub/ui';
 import { Button, Segmented, Select, toast } from '@lobehub/ui/base-ui';
-import { Wand2 } from 'lucide-react';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { Upload, Wand2, X } from 'lucide-react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import Action from '@/features/ChatInput/ActionBar/components/Action';
 import { usePermission } from '@/hooks/usePermission';
+import { useFileStore } from '@/store/file';
 import { useImageStore } from '@/store/image';
 
-type Mode = 'place' | 'relight' | 'resize';
+import { buildTryOnRequest, TRY_ON_CATEGORIES, type TryOnCategory } from './MaskEditor/mask';
+
+type Mode = 'place' | 'relight' | 'resize' | 'tryon';
 
 /**
  * `fal-ai/image-editing/reframe` only accepts these nine ratios — presenting
@@ -39,22 +42,52 @@ interface ImageEditToolButtonProps {
 }
 
 /**
- * One popover covering the three Version-1 edit tools (resize, product
- * placement, relight) instead of three separate icons — each needs exactly
- * one text/select input, so a shared small form is simpler than three
- * bespoke popovers and matches the Segmented-recipe pattern used elsewhere.
+ * One popover covering the single-input edit tools (resize, product
+ * placement, relight, try-on) instead of separate icons — each needs one
+ * text/select/upload input, so a shared small form is simpler than bespoke
+ * popovers and matches the Segmented-recipe pattern used elsewhere. Mask-based
+ * edits live in MaskEditToolButton, since painting needs a full modal.
  */
 const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onApplied }) => {
   const { t } = useTranslation('image');
   const { allowed: canCreate } = usePermission('create_content');
   const createEditedImage = useImageStore((s) => s.createEditedImage);
+  const uploadWithProgress = useFileStore((s) => s.uploadWithProgress);
+  const modelFileRef = useRef<HTMLInputElement>(null);
 
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<Mode>('resize');
   const [ratio, setRatio] = useState<(typeof RESIZE_RATIOS)[number]['value']>('16:9');
   const [sceneText, setSceneText] = useState('');
   const [relightText, setRelightText] = useState('');
+  // Try-on: the source image is the garment; the person photo is uploaded here.
+  const [modelImageUrl, setModelImageUrl] = useState<string | null>(null);
+  const [modelUploading, setModelUploading] = useState(false);
+  const [tryOnCategory, setTryOnCategory] = useState<TryOnCategory>('auto');
   const [submitting, setSubmitting] = useState(false);
+
+  const handleModelFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file || !canCreate) return;
+      setModelUploading(true);
+      try {
+        const uploaded = await uploadWithProgress({
+          file,
+          onStatusUpdate: () => {},
+          skipCheckFileType: true,
+        });
+        if (uploaded?.url) setModelImageUrl(uploaded.url);
+      } catch (error) {
+        console.error('Failed to upload model photo:', error);
+        toast.error({ description: t('editTool.failed'), duration: 4000 });
+      } finally {
+        setModelUploading(false);
+      }
+    },
+    [canCreate, t, uploadWithProgress],
+  );
 
   const ratioOptions = useMemo(
     () => RESIZE_RATIOS.map((r) => ({ label: t(r.label as any), value: r.value })),
@@ -65,7 +98,8 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
     canCreate &&
     (mode === 'resize' ||
       (mode === 'place' && sceneText.trim().length > 0) ||
-      (mode === 'relight' && relightText.trim().length > 0));
+      (mode === 'relight' && relightText.trim().length > 0) ||
+      (mode === 'tryon' && !!modelImageUrl));
 
   const handleApply = useCallback(async () => {
     if (!canApply) return;
@@ -88,12 +122,17 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
             scene_description: description,
           },
         });
-      } else {
+      } else if (mode === 'relight') {
         const description = relightText.trim();
         await createEditedImage(sourceUrl, {
           model: 'fal-ai/iclight-v2',
           params: { prompt: description },
         });
+      } else if (modelImageUrl) {
+        await createEditedImage(
+          sourceUrl,
+          buildTryOnRequest(sourceUrl, modelImageUrl, tryOnCategory),
+        );
       }
       toast.success({ description: t('editTool.applied'), duration: 2500 });
       setOpen(false);
@@ -104,13 +143,32 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
     } finally {
       setSubmitting(false);
     }
-  }, [canApply, createEditedImage, mode, onApplied, ratio, relightText, sceneText, sourceUrl, t]);
+  }, [
+    canApply,
+    createEditedImage,
+    mode,
+    modelImageUrl,
+    onApplied,
+    ratio,
+    relightText,
+    sceneText,
+    sourceUrl,
+    t,
+    tryOnCategory,
+  ]);
+
+  const categoryOptions = useMemo(
+    () =>
+      TRY_ON_CATEGORIES.map((c) => ({ label: t(`editTool.tryon.category.${c}` as any), value: c })),
+    [t],
+  );
 
   const modeOptions = useMemo(
     () => [
       { label: t('editTool.mode.resize'), value: 'resize' as Mode },
       { label: t('editTool.mode.place'), value: 'place' as Mode },
       { label: t('editTool.mode.relight'), value: 'relight' as Mode },
+      { label: t('editTool.mode.tryon'), value: 'tryon' as Mode },
     ],
     [t],
   );
@@ -187,6 +245,54 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
                     </Button>
                   ))}
                 </Flexbox>
+              </Flexbox>
+            )}
+
+            {mode === 'tryon' && (
+              <Flexbox gap={6}>
+                <span>{t('editTool.tryon.field')}</span>
+                <input
+                  accept="image/*"
+                  data-testid="tryon-model-input"
+                  ref={modelFileRef}
+                  style={{ display: 'none' }}
+                  type="file"
+                  onChange={handleModelFile}
+                />
+                {modelImageUrl ? (
+                  <Flexbox horizontal align={'center'} gap={8}>
+                    <img
+                      alt={t('editTool.tryon.field')}
+                      src={modelImageUrl}
+                      style={{ borderRadius: 4, height: 48, objectFit: 'cover', width: 48 }}
+                    />
+                    <Button
+                      icon={<X size={14} />}
+                      size={'small'}
+                      type={'text'}
+                      onClick={() => setModelImageUrl(null)}
+                    >
+                      {t('editTool.tryon.clearModel')}
+                    </Button>
+                  </Flexbox>
+                ) : (
+                  <Button
+                    disabled={!canCreate}
+                    icon={<Upload size={14} />}
+                    loading={modelUploading}
+                    size={'small'}
+                    onClick={() => modelFileRef.current?.click()}
+                  >
+                    {t('editTool.tryon.upload')}
+                  </Button>
+                )}
+                <span>{t('editTool.tryon.categoryField')}</span>
+                <Select
+                  options={categoryOptions}
+                  value={tryOnCategory}
+                  onChange={(v) => setTryOnCategory(v as TryOnCategory)}
+                />
+                <span style={{ fontSize: 12, opacity: 0.65 }}>{t('editTool.tryon.hint')}</span>
               </Flexbox>
             )}
 

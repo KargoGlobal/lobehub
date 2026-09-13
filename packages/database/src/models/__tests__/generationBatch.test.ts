@@ -519,6 +519,34 @@ describe('GenerationBatchModel', () => {
       expect(mockGetFullFileUrl).toHaveBeenCalledWith('end-frame.jpg');
     });
 
+    it('should transform edit-tool image fields (mask_url, model_image, garment_image) through FileService', async () => {
+      await serverDB.insert(generationBatches).values({
+        ...testBatch,
+        userId,
+        config: {
+          garment_image: 'files/pants.png',
+          imageUrl: 'files/pants.png',
+          mask_url: 'files/mask.png',
+          model_image: 'files/person.png',
+          prompt: 'Try on (bottoms)',
+        } as any,
+      });
+
+      const results = await generationBatchModel.queryGenerationBatchesByTopicIdWithGenerations(
+        testTopic.id,
+      );
+
+      expect(results[0].config).toEqual({
+        garment_image: 'https://example.com/files/pants.png',
+        imageUrl: 'https://example.com/files/pants.png',
+        mask_url: 'https://example.com/files/mask.png',
+        model_image: 'https://example.com/files/person.png',
+        prompt: 'Try on (bottoms)',
+      });
+      expect(mockGetFullFileUrl).toHaveBeenCalledWith('files/mask.png');
+      expect(mockGetFullFileUrl).toHaveBeenCalledWith('files/person.png');
+    });
+
     it('should handle config without imageUrls', async () => {
       const [createdBatch] = await serverDB
         .insert(generationBatches)

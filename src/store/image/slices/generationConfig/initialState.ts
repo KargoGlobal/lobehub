@@ -4,8 +4,10 @@ import { nanoBanana2Parameters } from 'model-bank/imageParameters';
 
 import { DEFAULT_IMAGE_CONFIG } from '@/const/settings';
 
-export const DEFAULT_AI_IMAGE_PROVIDER = ModelProvider.Google;
-export const DEFAULT_AI_IMAGE_MODEL = 'gemini-3.1-flash-image:image';
+// Creative Studio runs fal-only and prefers GPT Image 2 for the first-run
+// default. A user's last-selected model still wins once they've picked one.
+export const DEFAULT_AI_IMAGE_PROVIDER = ModelProvider.Fal;
+export const DEFAULT_AI_IMAGE_MODEL = 'openai/gpt-image-2';
 
 export interface GenerationConfigState {
   parameters: RuntimeImageGenParams;
