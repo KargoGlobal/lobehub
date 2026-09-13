@@ -562,6 +562,48 @@ const falAvatarVideoModels: AIVideoModelCard[] = [
   },
 ];
 
+// Video-to-video restyle endpoints: fix one generated clip (wardrobe, props,
+// look) instead of regenerating from scratch. Both are `enabled: false`
+// utilities invoked by the Video Restyle tool (never from the model picker).
+// `videoUrl` rides as an extra runtime param alongside `prompt`, same as the
+// talking-performer cards above. Endpoint ids and pricing verified against
+// fal's live OpenAPI schemas and model pages (2026-09-12).
+const falVideoRestyleModels: AIVideoModelCard[] = [
+  {
+    description:
+      'Lucy Edit [Pro] via fal: restyle an existing clip in place — swap an outfit, object, ' +
+      'face or the whole look — while keeping the rest of the shot, motion and timing intact. ' +
+      "720p output; the schema exposes only that tier today despite fal's pricing page also " +
+      'listing a 480p rate.',
+    displayName: 'Lucy Edit [Pro]',
+    enabled: false,
+    id: 'decart/lucy-edit/pro',
+    organization: 'Decart',
+    parameters: { prompt: { default: '' } },
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.15, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+  {
+    description:
+      'Kling O3 Edit [Pro] via fal: edit an existing clip with a text prompt (reference it as ' +
+      '@Video1) — restyle the look, swap wardrobe or props, while optionally keeping the ' +
+      'original audio. Source clip must be 3-15s, 720-3840px, .mp4/.mov, under 200MB.',
+    displayName: 'Kling O3 Edit [Pro]',
+    enabled: false,
+    id: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+    organization: 'Kuaishou',
+    parameters: { prompt: { default: '' } },
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.168, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+];
+
 // Audio endpoints for the Ad Voice tool (voiceover, music bed, sound effect).
 // Synchronous on fal; output is stored as a file, not a generation. `tts` is
 // the closest existing card type for all three (no `sfx`/music card type with
@@ -630,6 +672,7 @@ export const allModels = [
   ...falVideoModels,
   ...falH3VideoModels,
   ...falAvatarVideoModels,
+  ...falVideoRestyleModels,
   ...falAudioModels,
 ];
 

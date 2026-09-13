@@ -1347,6 +1347,70 @@ describe('LobeFalAI', () => {
     });
   });
 
+  describe('video restyle endpoints (createVideo)', () => {
+    const submitted = () => (mockFal.queue.submit as any).mock.calls[0] as [string, { input: any }];
+
+    beforeEach(() => {
+      (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-restyle' });
+    });
+
+    it('maps Lucy Edit [Pro] to video_url/prompt without the fal-ai/ prefix', async () => {
+      const result = await instance.createVideo({
+        model: 'decart/lucy-edit/pro',
+        params: {
+          prompt: 'Swap the jacket for a red one',
+          videoUrl: 'https://cdn/clip.mp4',
+        } as any,
+      });
+
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('decart/lucy-edit/pro');
+      expect(input).toEqual({
+        prompt: 'Swap the jacket for a red one',
+        video_url: 'https://cdn/clip.mp4',
+      });
+      expect(result).toEqual({ inferenceId: 'decart/lucy-edit/pro::req-restyle' });
+    });
+
+    it('maps Kling O3 Edit to video_url/prompt and forwards keep_audio only when turned off', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+        params: {
+          keepAudio: false,
+          prompt: 'Restyle as claymation',
+          videoUrl: 'https://cdn/clip.mp4',
+        } as any,
+      });
+
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('fal-ai/kling-video/o3/pro/video-to-video/edit');
+      expect(input).toEqual({
+        keep_audio: false,
+        prompt: 'Restyle as claymation',
+        video_url: 'https://cdn/clip.mp4',
+      });
+    });
+
+    it('omits keep_audio for Kling when left at the default', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+        params: { prompt: 'Restyle', videoUrl: 'https://cdn/clip.mp4' } as any,
+      });
+      const [, { input }] = submitted();
+      expect('keep_audio' in input).toBe(false);
+    });
+
+    it('rejects a restyle request without a source clip', async () => {
+      await expect(
+        instance.createVideo({
+          model: 'decart/lucy-edit/pro',
+          params: { prompt: 'x' } as any,
+        }),
+      ).rejects.toThrow(/videoUrl/);
+      expect(mockFal.queue.submit).not.toHaveBeenCalled();
+    });
+  });
+
   describe('textToSpeech (audio endpoints)', () => {
     const subscribed = () => (mockFal.subscribe as any).mock.calls[0] as [string, { input: any }];
     const bytes = new Uint8Array([1, 2, 3]).buffer;
