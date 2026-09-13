@@ -46,9 +46,11 @@ export const SuccessState = memo<SuccessStateProps>(
         />
         <ActionButtons
           showDownload
+          height={generation.asset?.height ?? undefined}
           seedTooltip={seedTooltip}
           showCopySeed={!!generation.seed}
           sourceUrl={generation.asset!.url}
+          width={generation.asset?.width ?? undefined}
           onCopySeed={onCopySeed}
           onDelete={onDelete}
           onDownload={onDownload}

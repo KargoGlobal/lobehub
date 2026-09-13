@@ -7,6 +7,8 @@ import { Dices, Download, Eraser, Sparkles, Trash2 } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { AdSpecValidatorAction } from '@/features/AdSpecValidator';
+
 import ImageEditToolButton from './ImageEditToolButton';
 import MaskEditToolButton from './MaskEditor/MaskEditToolButton';
 import { styles } from './styles';
@@ -27,6 +29,8 @@ export const ActionButtons = memo<ActionButtonsProps>(
     showCopySeed = false,
     seedTooltip,
     sourceUrl,
+    width,
+    height,
   }) => {
     const { t } = useTranslation('image');
 
@@ -34,6 +38,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
       <Flexbox className={styles.generationActionButton} gap={4}>
         {sourceUrl && <ImageEditToolButton sourceUrl={sourceUrl} />}
         {sourceUrl && <MaskEditToolButton sourceUrl={sourceUrl} />}
+        {(width || height) && <AdSpecValidatorAction height={height} width={width} />}
         <ActionIconGroup
           actionIconProps={actionIconProps}
           horizontal={false}
@@ -82,6 +87,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
               onCopySeed,
               seedTooltip,
               onDelete,
+              t,
             ],
           )}
         />
