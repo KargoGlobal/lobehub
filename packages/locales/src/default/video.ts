@@ -171,4 +171,18 @@ export default {
   'adVoice.avatar.started': 'Performer clip started — it will appear in the feed',
   'adVoice.avatar.badge': 'AI performer',
   'adVoice.avatar.badgeTooltip': 'Contains a synthetic performer — disclose when used in an ad',
+  'videoRestyle.title': 'Video Restyle',
+  'videoRestyle.subtitle':
+    'Fix one generated clip instead of regenerating — swap an outfit, an object or the whole look while the shot and motion stay put.',
+  'videoRestyle.clip': 'Source clip',
+  'videoRestyle.uploadClip': 'Upload clip',
+  'videoRestyle.replaceClip': 'Replace clip',
+  'videoRestyle.engine': 'Engine',
+  'videoRestyle.prompt': 'What to change',
+  'videoRestyle.promptPlaceholder': 'e.g. swap the jacket for a red one, keep everything else',
+  'videoRestyle.keepAudio': 'Keep original audio',
+  'videoRestyle.clipLength': 'Estimated clip length · {{seconds}}s',
+  'videoRestyle.estimate': 'Estimate · {{cost}}',
+  'videoRestyle.generate': 'Restyle clip',
+  'videoRestyle.started': 'Restyle started — it will appear in the feed',
 } as const;

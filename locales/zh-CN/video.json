@@ -155,5 +155,18 @@
   "topic.title": "视频主题",
   "topic.untitled": "默认主题",
   "topic.visibility.existingLocked": "当前主题的可见性已固定。创建新主题后可选择不同空间。",
-  "topic.workspaceTitle": "工作区"
+  "topic.workspaceTitle": "工作区",
+  "videoRestyle.clip": "源片段",
+  "videoRestyle.clipLength": "预估片段长度 · {{seconds}}秒",
+  "videoRestyle.engine": "引擎",
+  "videoRestyle.estimate": "预估费用 · {{cost}}",
+  "videoRestyle.generate": "重新风格化片段",
+  "videoRestyle.keepAudio": "保留原始音频",
+  "videoRestyle.prompt": "要修改的内容",
+  "videoRestyle.promptPlaceholder": "例如：把外套换成红色，其他保持不变",
+  "videoRestyle.replaceClip": "替换片段",
+  "videoRestyle.started": "重新风格化已开始，完成后将显示在动态中",
+  "videoRestyle.subtitle": "修复已生成的片段而不是重新生成——更换服装、物体或整体风格，镜头与运动保持不变。",
+  "videoRestyle.title": "视频重新风格化",
+  "videoRestyle.uploadClip": "上传片段"
 }

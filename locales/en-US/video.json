@@ -155,5 +155,18 @@
   "topic.title": "Video Topics",
   "topic.untitled": "Default Topic",
   "topic.visibility.existingLocked": "Visibility is fixed for the current topic. Create a new topic to choose a different space.",
-  "topic.workspaceTitle": "Workspace"
+  "topic.workspaceTitle": "Workspace",
+  "videoRestyle.clip": "Source clip",
+  "videoRestyle.clipLength": "Estimated clip length · {{seconds}}s",
+  "videoRestyle.engine": "Engine",
+  "videoRestyle.estimate": "Estimate · {{cost}}",
+  "videoRestyle.generate": "Restyle clip",
+  "videoRestyle.keepAudio": "Keep original audio",
+  "videoRestyle.prompt": "What to change",
+  "videoRestyle.promptPlaceholder": "e.g. swap the jacket for a red one, keep everything else",
+  "videoRestyle.replaceClip": "Replace clip",
+  "videoRestyle.started": "Restyle started — it will appear in the feed",
+  "videoRestyle.subtitle": "Fix one generated clip instead of regenerating — swap an outfit, an object or the whole look while the shot and motion stay put.",
+  "videoRestyle.title": "Video Restyle",
+  "videoRestyle.uploadClip": "Upload clip"
 }
