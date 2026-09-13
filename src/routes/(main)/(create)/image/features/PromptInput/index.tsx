@@ -9,6 +9,7 @@ import { memo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { loginRequired } from '@/components/Error/loginRequiredNotification';
+import { BrandKitAction } from '@/features/BrandKit';
 import Action from '@/features/ChatInput/ActionBar/components/Action';
 import ModelSwitchPanel from '@/features/ModelSwitchPanel';
 import PromptTransformAction from '@/features/PromptTransform/PromptTransformAction';
@@ -312,6 +313,14 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
           >
             <GenerationMediaModeSegment mode={'image'} />
             <UploadToolButton />
+            <BrandKitAction
+              prompt={value ?? ''}
+              target={'image'}
+              onPromptChange={(next) => {
+                if (!canCreate) return;
+                setValue(next as any);
+              }}
+            />
             <ModelSwitchPanel
               ModelItemComponent={ImageModelItem}
               enabledList={enabledImageModelList}

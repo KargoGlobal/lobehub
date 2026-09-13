@@ -19,6 +19,10 @@ export const FeatureFlagsSchema = z.object({
   edit_agent: FeatureFlagValue.optional(),
 
   ai_image: FeatureFlagValue.optional(),
+  // Talking-performer video tools (AI avatar, lip-sync). Off by default: such
+  // output is a "synthetic performer" under NY SB 8420-A and needs a disclosure
+  // policy in place before the team can ship it in ads.
+  synthetic_performer: FeatureFlagValue.optional(),
   speech_to_text: FeatureFlagValue.optional(),
   voice_dictation: FeatureFlagValue.optional(),
   token_counter: FeatureFlagValue.optional(),
@@ -79,6 +83,7 @@ export const DEFAULT_FEATURE_FLAGS: IFeatureFlags = {
   edit_agent: true,
 
   ai_image: true,
+  synthetic_performer: false,
 
   check_updates: true,
   welcome_suggest: true,
@@ -125,6 +130,7 @@ export const mapFeatureFlagsEnvToState = (
     showApiKeyManage: evaluateFeatureFlag(config.api_key_manage, userId),
 
     showAiImage: evaluateFeatureFlag(config.ai_image, userId),
+    enableSyntheticPerformer: evaluateFeatureFlag(config.synthetic_performer, userId),
     showChangelog: evaluateFeatureFlag(config.changelog, userId),
 
     enableCheckUpdates: evaluateFeatureFlag(config.check_updates, userId),

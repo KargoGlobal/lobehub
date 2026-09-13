@@ -7,6 +7,7 @@ import type { ClientOptions } from 'openai';
 import type { LobeRuntimeAI } from '../../core/BaseAI';
 import { AgentRuntimeErrorType } from '../../types/error';
 import type { CreateImagePayload, CreateImageResponse } from '../../types/image';
+import type { TextToSpeechPayload } from '../../types/tts';
 import type {
   CreateVideoPayload,
   CreateVideoResponse,
@@ -105,6 +106,124 @@ const buildFalH3VideoInput = (
   if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
 
   return { endpoint: resolvedEndpoint, input };
+};
+
+// Talking-performer endpoints. Both return `{ video: { url } }` like every other
+// fal video model, so the existing queue/poll path handles them; only the input
+// shape differs (a driving audio track instead of a text prompt).
+//   - `fal-ai/bytedance/omnihuman/v1.5`: still photo + audio -> talking video.
+//     1080p caps audio at 30s, 720p at 60s (fal docs).
+//   - `fal-ai/sync-lipsync/v3`: existing clip + audio -> re-lip-synced clip.
+const isFalOmniHumanEndpoint = (endpoint: string) =>
+  endpoint.startsWith('fal-ai/bytedance/omnihuman');
+const isFalLipsyncEndpoint = (endpoint: string) => endpoint.startsWith('fal-ai/sync-lipsync');
+export const isFalAvatarEndpoint = (endpoint: string) =>
+  isFalOmniHumanEndpoint(endpoint) || isFalLipsyncEndpoint(endpoint);
+
+const OMNIHUMAN_RESOLUTIONS = new Set(['720p', '1080p']);
+const LIPSYNC_SYNC_MODES = new Set(['cut_off', 'loop', 'bounce', 'silence', 'remap']);
+
+const nonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.length > 0;
+
+export const buildFalAvatarInput = (
+  endpoint: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> => {
+  if (!nonEmptyString(params.audioUrl)) {
+    throw new Error('audioUrl is required for talking-performer endpoints');
+  }
+
+  if (isFalLipsyncEndpoint(endpoint)) {
+    if (!nonEmptyString(params.videoUrl)) {
+      throw new Error('videoUrl is required for sync-lipsync');
+    }
+    const syncMode =
+      typeof params.syncMode === 'string' && LIPSYNC_SYNC_MODES.has(params.syncMode)
+        ? params.syncMode
+        : 'cut_off';
+    return { audio_url: params.audioUrl, sync_mode: syncMode, video_url: params.videoUrl };
+  }
+
+  if (!nonEmptyString(params.imageUrl)) {
+    throw new Error('imageUrl is required for OmniHuman');
+  }
+  const input: Record<string, unknown> = {
+    audio_url: params.audioUrl,
+    image_url: params.imageUrl,
+  };
+  // OmniHuman's prompt is optional guidance; the app's required prompt field
+  // doubles as the batch label, so only forward it when it carries content.
+  if (nonEmptyString(params.prompt)) input.prompt = params.prompt;
+  const resolution = typeof params.resolution === 'string' ? params.resolution.toLowerCase() : '';
+  input.resolution = OMNIHUMAN_RESOLUTIONS.has(resolution) ? resolution : '1080p';
+  if (params.turboMode === true) input.turbo_mode = true;
+  return input;
+};
+
+// Audio endpoints (voiceover, music, sound effects). All synchronous via
+// `fal.subscribe`, all return `{ audio: { url } }`; only the request shape
+// differs per vendor. Verified against each endpoint's live OpenAPI schema.
+const FAL_AUDIO_BUILDERS: [
+  test: (endpoint: string) => boolean,
+  build: (p: TextToSpeechPayload) => Record<string, unknown>,
+][] = [
+  [
+    (e) => e.startsWith('fal-ai/elevenlabs/tts/'),
+    ({ input, voice, params = {} }) => {
+      const body: Record<string, unknown> = { text: input };
+      if (voice) body.voice = voice;
+      if (typeof params.speed === 'number') body.speed = params.speed;
+      if (typeof params.stability === 'number') body.stability = params.stability;
+      if (typeof params.similarityBoost === 'number')
+        body.similarity_boost = params.similarityBoost;
+      if (typeof params.style === 'number') body.style = params.style;
+      if (typeof params.languageCode === 'string') body.language_code = params.languageCode;
+      return body;
+    },
+  ],
+  [
+    (e) => e.startsWith('fal-ai/minimax/speech'),
+    ({ input, voice, params = {} }) => {
+      const voice_setting: Record<string, unknown> = {};
+      if (voice) voice_setting.voice_id = voice;
+      if (typeof params.speed === 'number') voice_setting.speed = params.speed;
+      if (typeof params.emotion === 'string') voice_setting.emotion = params.emotion;
+      const body: Record<string, unknown> = { output_format: 'url', prompt: input };
+      if (Object.keys(voice_setting).length > 0) body.voice_setting = voice_setting;
+      return body;
+    },
+  ],
+  [
+    (e) => e.startsWith('fal-ai/elevenlabs/music'),
+    ({ input, params = {} }) => {
+      const body: Record<string, unknown> = { prompt: input };
+      if (typeof params.lengthMs === 'number') body.music_length_ms = Math.round(params.lengthMs);
+      if (params.instrumental === true) body.force_instrumental = true;
+      return body;
+    },
+  ],
+  [
+    (e) => e.startsWith('fal-ai/elevenlabs/sound-effects'),
+    ({ input, params = {} }) => {
+      const body: Record<string, unknown> = { text: input };
+      if (typeof params.durationSeconds === 'number')
+        body.duration_seconds = params.durationSeconds;
+      if (typeof params.promptInfluence === 'number')
+        body.prompt_influence = params.promptInfluence;
+      if (params.loop === true) body.loop = true;
+      return body;
+    },
+  ],
+];
+
+export const buildFalAudioInput = (
+  endpoint: string,
+  payload: TextToSpeechPayload,
+): Record<string, unknown> => {
+  const builder = FAL_AUDIO_BUILDERS.find(([test]) => test(endpoint));
+  if (!builder) throw new Error(`Unsupported fal audio endpoint: ${endpoint}`);
+  return builder[1](payload);
 };
 
 // inferenceId must round-trip through the async task queue as a single string,
@@ -248,6 +367,8 @@ export class LobeFalAI implements LobeRuntimeAI {
     let input: Record<string, unknown>;
     if (isFalH3Endpoint(endpoint)) {
       ({ endpoint, input } = buildFalH3VideoInput(endpoint, params));
+    } else if (isFalAvatarEndpoint(endpoint)) {
+      input = buildFalAvatarInput(endpoint, params as Record<string, unknown>);
     } else {
       input = { prompt: params.prompt };
       if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
@@ -271,6 +392,44 @@ export class LobeFalAI implements LobeRuntimeAI {
 
       throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
     }
+  }
+
+  /**
+   * Voiceover / music / sound effects. Returns the audio bytes so callers can
+   * store them like any other TTS output; fal's own hosted URL is short-lived.
+   */
+  async textToSpeech(payload: TextToSpeechPayload): Promise<ArrayBuffer> {
+    const requestModel = resolveMappedModelId(payload.model, this.modelIdMappingOptions);
+    const endpoint = resolveFalEndpoint(requestModel);
+    const input = buildFalAudioInput(endpoint, payload);
+    log('Calling fal audio endpoint %s with input: %O', endpoint, input);
+
+    let audioUrl: string | undefined;
+    try {
+      const { data } = await fal.subscribe(endpoint, { input });
+      audioUrl = (data as { audio?: { url?: string } })?.audio?.url;
+    } catch (error) {
+      if (error instanceof Error && 'status' in error && error.status === 401) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.InvalidProviderAPIKey, {
+          error,
+        });
+      }
+      throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
+    }
+
+    if (!audioUrl) {
+      throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+        error: new Error('fal returned a completed audio task without an audio url'),
+      });
+    }
+
+    const response = await fetch(audioUrl);
+    if (!response.ok) {
+      throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+        error: new Error(`Failed to download fal audio: ${response.status}`),
+      });
+    }
+    return response.arrayBuffer();
   }
 
   async handlePollVideoStatus(inferenceId: string): Promise<PollVideoStatusResult> {

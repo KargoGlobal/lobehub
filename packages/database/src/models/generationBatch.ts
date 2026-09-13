@@ -5,7 +5,7 @@ import type {
   ImageGenerationAsset,
   VideoGenerationAsset,
 } from '@lobechat/types';
-import { IMAGE_EDIT_URL_FIELDS } from '@lobechat/types';
+import { IMAGE_EDIT_URL_FIELDS, VIDEO_INPUT_URL_FIELDS } from '@lobechat/types';
 import debug from 'debug';
 import { and, desc, eq, exists } from 'drizzle-orm';
 
@@ -208,7 +208,7 @@ export class GenerationBatchModel {
 
             // Handle the edit tools' extra image-URL fields (mask, try-on inputs)
             const extra = config as unknown as Record<string, unknown>;
-            for (const field of IMAGE_EDIT_URL_FIELDS) {
+            for (const field of [...IMAGE_EDIT_URL_FIELDS, ...VIDEO_INPUT_URL_FIELDS]) {
               const key = extra[field];
               if (typeof key === 'string' && key) {
                 extra[field] = await this.fileService.getFullFileUrl(key);

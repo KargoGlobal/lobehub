@@ -180,6 +180,23 @@ describe('compilePlan — product ad', () => {
   });
 });
 
+describe('compilePlan — brand kit line', () => {
+  it('emits the brand block between the subject and the timeline, and omits it when blank', () => {
+    const brand =
+      'Brand: Acme.\nBrand palette: #0F172A, #F97316 — keep these as the dominant colours.';
+    const { prompt } = compilePlan(productPlan(), { brand });
+    const subjectAt = prompt.indexOf('Subject:');
+    const brandAt = prompt.indexOf('Brand: Acme.');
+    const timelineAt = prompt.indexOf('Timeline:');
+    expect(brandAt).toBeGreaterThan(subjectAt);
+    expect(brandAt).toBeLessThan(timelineAt);
+    expect(prompt).toContain('#F97316');
+
+    expect(compilePlan(productPlan(), { brand: '   ' }).prompt).not.toContain('Brand:');
+    expect(compilePlan(productPlan()).prompt).not.toContain('Brand:');
+  });
+});
+
 describe('compilePlan — background loop', () => {
   it('produces a loopable single-shot background with a copy-safe centre', () => {
     const { prompt, errors, warnings } = compilePlan(backgroundPlan(), {

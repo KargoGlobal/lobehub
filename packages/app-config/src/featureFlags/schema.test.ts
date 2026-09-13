@@ -135,6 +135,15 @@ describe('mapFeatureFlagsEnvToState', () => {
     expect(mappedState.enableVoiceDictation).toBe(false);
   });
 
+  it('should keep synthetic-performer tools off by default (disclosure policy gate)', () => {
+    const mappedState = mapFeatureFlagsEnvToState(DEFAULT_FEATURE_FLAGS);
+
+    expect(mappedState.enableSyntheticPerformer).toBe(false);
+    expect(mapFeatureFlagsEnvToState({ synthetic_performer: true }).enableSyntheticPerformer).toBe(
+      true,
+    );
+  });
+
   it('should keep onboarding v2 off by default outside development', () => {
     const mappedState = mapFeatureFlagsEnvToState(DEFAULT_FEATURE_FLAGS);
 

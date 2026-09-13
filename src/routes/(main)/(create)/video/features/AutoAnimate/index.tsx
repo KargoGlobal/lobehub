@@ -8,6 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ImperativeModal from '@/components/ImperativeModal';
+import { compileBrandPreamble, useBrandKits } from '@/features/BrandKit';
 import Action from '@/features/ChatInput/ActionBar/components/Action';
 import { usePermission } from '@/hooks/usePermission';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
@@ -151,6 +152,8 @@ const AutoAnimateModal = memo<AutoAnimateModalProps>(({ open, onClose }) => {
   const { value: currentPrompt } = useVideoGenerationConfigParam('prompt');
   const createVideosFromRequests = useVideoStore((s) => s.createVideosFromRequests);
   const isCreating = useVideoStore(createVideoSelectors.isCreating);
+  const { activeKit } = useBrandKits();
+  const brand = useMemo(() => compileBrandPreamble(activeKit, 'video'), [activeKit]);
 
   const [description, setDescription] = useState(() => currentPrompt ?? '');
   const [category, setCategory] = useState<ProductCategory>('generic');
@@ -167,8 +170,8 @@ const AutoAnimateModal = memo<AutoAnimateModalProps>(({ open, onClose }) => {
   }, [description, categoryTouched]);
 
   const concepts = useMemo(
-    () => buildConcepts({ category, description, imageUrl, placement, seeds }),
-    [category, description, imageUrl, placement, seeds],
+    () => buildConcepts({ brand, category, description, imageUrl, placement, seeds }),
+    [brand, category, description, imageUrl, placement, seeds],
   );
 
   const toggle = useCallback((id: string) => {

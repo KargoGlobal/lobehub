@@ -5,7 +5,7 @@ import { ActionIconGroup, Block, Flexbox } from '@lobehub/ui';
 import { Tag, Text, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import dayjs from 'dayjs';
-import { CopyIcon, RotateCcwSquareIcon, Trash2 } from 'lucide-react';
+import { CopyIcon, RotateCcwSquareIcon, ScanFace, Trash2 } from 'lucide-react';
 import { type RuntimeVideoGenParamsKeys, type RuntimeVideoGenParamsValue } from 'model-bank';
 import { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -19,6 +19,7 @@ import { AsyncTaskErrorType, AsyncTaskStatus } from '@/types/asyncTask';
 import type { GenerationBatch } from '@/types/generation';
 import { downloadFile } from '@/utils/client/downloadFile';
 
+import { isSyntheticPerformerBatch } from '../AdVoice/voice';
 import VideoErrorItem from './VideoErrorItem';
 import VideoLoadingItem from './VideoLoadingItem';
 import VideoPromptSummary from './VideoPromptSummary';
@@ -137,14 +138,17 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
     const baseName = batch.prompt.slice(0, 30).trim();
     const sanitizedBaseName = baseName.replaceAll(/["%*/:<>?\\|]/g, '').replaceAll(/\s+/g, '_');
     const safePrompt = sanitizedBaseName || 'Untitled';
-    const fileName = `${safePrompt}_${timestamp}.mp4`;
+    // Synthetic-performer output carries the disclosure in its filename so it
+    // cannot be mistaken for filmed footage once it leaves the app.
+    const disclosureSuffix = isSyntheticPerformerBatch(batch.config) ? '_AI-PERFORMER' : '';
+    const fileName = `${safePrompt}_${timestamp}${disclosureSuffix}.mp4`;
 
     try {
       await downloadFile(generation.asset.url, fileName, false);
     } catch (error) {
       console.error('Failed to download video:', error);
     }
-  }, [generation?.asset?.url, generation?.createdAt, batch.prompt]);
+  }, [generation?.asset?.url, generation?.createdAt, batch.prompt, batch.config]);
 
   const handleCopyError = useCallback(async () => {
     if (!generation?.task.error) return;
@@ -260,6 +264,16 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
             {modelDisplayName}
           </Tag>
           {batch.config?.resolution && <Tag variant={'borderless'}>{batch.config.resolution}</Tag>}
+          {isSyntheticPerformerBatch(batch.config) && (
+            <Tag
+              color={'warning'}
+              data-testid={'synthetic-performer-badge'}
+              icon={<ScanFace size={12} />}
+              title={t('adVoice.avatar.badgeTooltip')}
+            >
+              {t('adVoice.avatar.badge')}
+            </Tag>
+          )}
         </Flexbox>
         <Flexbox horizontal align={'center'} gap={6}>
           {showCreator && (

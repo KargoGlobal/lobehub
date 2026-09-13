@@ -619,6 +619,8 @@ export const recipesForCategory = (category: ProductCategory): ConceptRecipe[] =
   CATEGORY_RECIPES[category] ?? CATEGORY_RECIPES.generic;
 
 export interface AutoAnimateInput {
+  /** Compiled brand-kit preamble, folded into every concept's prompt. */
+  brand?: string;
   category: ProductCategory;
   description: string;
   /** Product photo attached in the workspace (full URL), if any. */
@@ -691,7 +693,7 @@ export const buildConcepts = (input: AutoAnimateInput): AnimationConcept[] => {
     };
 
     const seed = input.seeds?.[index] ?? null;
-    const compiled = compilePlan(plan, { resolution: '1080P', seed });
+    const compiled = compilePlan(plan, { brand: input.brand, resolution: '1080P', seed });
     const model = AUTO_ANIMATE_MODELS[mode];
 
     const params: ConceptRequestParams = {

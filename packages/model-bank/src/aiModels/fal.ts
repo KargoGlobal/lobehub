@@ -1,5 +1,5 @@
 import type { ModelParamsSchema, VideoModelParamsSchema } from '../standard-parameters';
-import type { AIImageModelCard, AIVideoModelCard } from '../types/aiModel';
+import type { AIImageModelCard, AITTSModelCard, AIVideoModelCard } from '../types/aiModel';
 
 export const fluxSchnellParamsSchema: ModelParamsSchema = {
   height: { default: 1024, max: 1536, min: 512, step: 1 },
@@ -517,6 +517,120 @@ const falH3VideoModels: AIVideoModelCard[] = [
   },
 ];
 
-export const allModels = [...falImageModels, ...falVideoModels, ...falH3VideoModels];
+// Talking-performer video endpoints, driven by an audio track rather than a
+// text prompt. Both are `enabled: false` utilities invoked by the Ad Voice tool
+// (never from the model picker), and the tool itself sits behind the
+// `synthetic_performer` feature flag until a disclosure policy is in place.
+// Pricing verified on the fal model pages (2026-09-12).
+const falAvatarVideoModels: AIVideoModelCard[] = [
+  {
+    description:
+      'ByteDance OmniHuman 1.5 via fal: one still photo plus a voiceover becomes a talking ' +
+      'video with matched lip-sync, gesture and expression. 1080p accepts up to 30s of audio, ' +
+      '720p up to 60s. Output contains a synthetic performer — disclosure applies.',
+    displayName: 'Talking photo',
+    enabled: false,
+    id: 'fal-ai/bytedance/omnihuman/v1.5',
+    organization: 'ByteDance',
+    parameters: {
+      imageUrl: { default: null },
+      prompt: { default: '' },
+      resolution: { default: '1080p', enum: ['720p', '1080p'] },
+    },
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.16, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+  {
+    description:
+      'sync. lipsync v3 via fal: re-syncs the mouth of a person in an existing clip to a new ' +
+      'voiceover, so one filmed take can carry any script or language. Output contains a ' +
+      'synthetic performer — disclosure applies.',
+    displayName: 'Dub a clip',
+    enabled: false,
+    id: 'fal-ai/sync-lipsync/v3',
+    organization: 'sync.',
+    parameters: { prompt: { default: '' } },
+    pricing: {
+      // $8 per minute of output video.
+      units: [{ name: 'videoGeneration', rate: 8 / 60, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+];
+
+// Audio endpoints for the Ad Voice tool (voiceover, music bed, sound effect).
+// Synchronous on fal; output is stored as a file, not a generation. `tts` is
+// the closest existing card type for all three (no `sfx`/music card type with
+// per-second pricing exists), so the pricing notes carry the real unit.
+export const falAudioModels: AITTSModelCard[] = [
+  {
+    description:
+      'ElevenLabs Turbo v2.5 via fal: fast, natural English-first voiceover with the stock ' +
+      'ElevenLabs voice library. $0.05 per 1,000 characters.',
+    displayName: 'ElevenLabs Turbo v2.5',
+    enabled: false,
+    id: 'fal-ai/elevenlabs/tts/turbo-v2.5',
+    organization: 'ElevenLabs',
+    pricing: {
+      units: [{ name: 'textInput', rate: 50, strategy: 'fixed', unit: 'millionCharacters' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'tts',
+  },
+  {
+    description:
+      'MiniMax Speech 2.8 HD via fal: expressive multilingual voiceover with emotion control ' +
+      'and 17 stock voices. $0.10 per 1,000 characters.',
+    displayName: 'MiniMax Speech 2.8 HD',
+    enabled: false,
+    id: 'fal-ai/minimax/speech-2.8-hd',
+    organization: 'MiniMax',
+    pricing: {
+      units: [{ name: 'textInput', rate: 100, strategy: 'fixed', unit: 'millionCharacters' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'tts',
+  },
+  {
+    description:
+      'ElevenLabs Music via fal: a music bed from a text brief, 3s–10min, optional ' +
+      'instrumental-only. $0.60 per output minute, rounded up.',
+    displayName: 'ElevenLabs Music',
+    enabled: false,
+    id: 'fal-ai/elevenlabs/music',
+    organization: 'ElevenLabs',
+    pricing: {
+      units: [{ name: 'audioOutput', rate: 0.01, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'tts',
+  },
+  {
+    description:
+      'ElevenLabs Sound Effects v2 via fal: a single sound effect (0.5–22s) from a short ' +
+      'description, optionally seamless-looping. $0.002 per second.',
+    displayName: 'ElevenLabs Sound Effects',
+    enabled: false,
+    id: 'fal-ai/elevenlabs/sound-effects/v2',
+    organization: 'ElevenLabs',
+    pricing: {
+      units: [{ name: 'audioOutput', rate: 0.002, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'tts',
+  },
+];
+
+export const allModels = [
+  ...falImageModels,
+  ...falVideoModels,
+  ...falH3VideoModels,
+  ...falAvatarVideoModels,
+  ...falAudioModels,
+];
 
 export default allModels;
