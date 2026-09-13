@@ -60,24 +60,6 @@ export const huanyuanImageParamsSchema: ModelParamsSchema = {
 const falImageModels: AIImageModelCard[] = [
   {
     description:
-      'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',
-    displayName: 'Nano Banana 2',
-    enabled: true,
-    id: 'fal-ai/nano-banana-2',
-    parameters: {
-      imageUrls: { default: [], maxCount: 10 },
-      prompt: {
-        default: '',
-      },
-    },
-    pricing: {
-      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
-    },
-    releasedAt: '2026-06-15',
-    type: 'image',
-  },
-  {
-    description:
       'OpenAI’s GPT Image 2 model served via fal, with strong prompt adherence, text rendering, and conversational image editing.',
     displayName: 'GPT Image 2',
     enabled: true,
@@ -93,6 +75,24 @@ const falImageModels: AIImageModelCard[] = [
       units: [{ name: 'imageGeneration', rate: 0.07, strategy: 'fixed', unit: 'image' }],
     },
     releasedAt: '2026-05-20',
+    type: 'image',
+  },
+  {
+    description:
+      'Nano Banana 2 is the latest generation of Google’s fast multimodal image model, served via fal, with improved fidelity and editing through conversation.',
+    displayName: 'Nano Banana 2',
+    enabled: true,
+    id: 'fal-ai/nano-banana-2',
+    parameters: {
+      imageUrls: { default: [], maxCount: 10 },
+      prompt: {
+        default: '',
+      },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-06-15',
     type: 'image',
   },
   {
