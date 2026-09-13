@@ -1284,4 +1284,159 @@ describe('LobeFalAI', () => {
       expect(result.status).toBe('failed');
     });
   });
+
+  describe('talking-performer endpoints (createVideo)', () => {
+    const submitted = () => (mockFal.queue.submit as any).mock.calls[0] as [string, { input: any }];
+
+    beforeEach(() => {
+      (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-av' });
+    });
+
+    it('maps OmniHuman inputs to image_url/audio_url and lower-cases resolution', async () => {
+      const result = await instance.createVideo({
+        model: 'fal-ai/bytedance/omnihuman/v1.5',
+        params: {
+          audioUrl: 'https://cdn/vo.mp3',
+          imageUrl: 'https://cdn/face.jpg',
+          prompt: 'Ad voice · Acme spring',
+          resolution: '720P',
+        } as any,
+      });
+
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('fal-ai/bytedance/omnihuman/v1.5');
+      expect(input).toEqual({
+        audio_url: 'https://cdn/vo.mp3',
+        image_url: 'https://cdn/face.jpg',
+        prompt: 'Ad voice · Acme spring',
+        resolution: '720p',
+      });
+      expect(result).toEqual({ inferenceId: 'fal-ai/bytedance/omnihuman/v1.5::req-av' });
+    });
+
+    it('defaults OmniHuman to 1080p and forwards turbo mode', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/bytedance/omnihuman/v1.5',
+        params: { audioUrl: 'a', imageUrl: 'i', prompt: '', turboMode: true } as any,
+      });
+      const [, { input }] = submitted();
+      expect(input.resolution).toBe('1080p');
+      expect(input.turbo_mode).toBe(true);
+      // empty prompt is not forwarded (it is only the batch label)
+      expect('prompt' in input).toBe(false);
+    });
+
+    it('maps sync-lipsync to video_url/audio_url with a safe default sync mode', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/sync-lipsync/v3',
+        params: { audioUrl: 'a.mp3', prompt: 'dub', syncMode: 'bogus', videoUrl: 'v.mp4' } as any,
+      });
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('fal-ai/sync-lipsync/v3');
+      expect(input).toEqual({ audio_url: 'a.mp3', sync_mode: 'cut_off', video_url: 'v.mp4' });
+    });
+
+    it('rejects a talking-photo request without audio', async () => {
+      await expect(
+        instance.createVideo({
+          model: 'fal-ai/bytedance/omnihuman/v1.5',
+          params: { imageUrl: 'i', prompt: 'x' } as any,
+        }),
+      ).rejects.toThrow(/audioUrl/);
+      expect(mockFal.queue.submit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('textToSpeech (audio endpoints)', () => {
+    const subscribed = () => (mockFal.subscribe as any).mock.calls[0] as [string, { input: any }];
+    const bytes = new Uint8Array([1, 2, 3]).buffer;
+
+    beforeEach(() => {
+      (mockFal.subscribe as any).mockResolvedValue({
+        data: { audio: { url: 'https://fal.media/vo.mp3' } },
+      });
+      vi.stubGlobal(
+        'fetch',
+        vi.fn().mockResolvedValue({ arrayBuffer: async () => bytes, ok: true }),
+      );
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('builds the ElevenLabs TTS request and returns the downloaded bytes', async () => {
+      const out = await instance.textToSpeech({
+        input: 'Spring sale starts now.',
+        model: 'fal-ai/elevenlabs/tts/turbo-v2.5',
+        params: { speed: 1.1, stability: 0.4 },
+        voice: 'Rachel',
+      });
+      const [endpoint, { input }] = subscribed();
+      expect(endpoint).toBe('fal-ai/elevenlabs/tts/turbo-v2.5');
+      expect(input).toEqual({
+        speed: 1.1,
+        stability: 0.4,
+        text: 'Spring sale starts now.',
+        voice: 'Rachel',
+      });
+      expect(fetch).toHaveBeenCalledWith('https://fal.media/vo.mp3');
+      expect(out).toBe(bytes);
+    });
+
+    it('nests MiniMax voice settings and asks for a URL output', async () => {
+      await instance.textToSpeech({
+        input: 'Hello',
+        model: 'fal-ai/minimax/speech-2.8-hd',
+        params: { emotion: 'happy', speed: 0.9 },
+        voice: 'Wise_Woman',
+      });
+      const [, { input }] = subscribed();
+      expect(input).toEqual({
+        output_format: 'url',
+        prompt: 'Hello',
+        voice_setting: { emotion: 'happy', speed: 0.9, voice_id: 'Wise_Woman' },
+      });
+    });
+
+    it('maps music length and instrumental flag', async () => {
+      await instance.textToSpeech({
+        input: 'upbeat indie pop',
+        model: 'fal-ai/elevenlabs/music',
+        params: { instrumental: true, lengthMs: 15_000.4 },
+        voice: '',
+      });
+      const [, { input }] = subscribed();
+      expect(input).toEqual({
+        force_instrumental: true,
+        music_length_ms: 15_000,
+        prompt: 'upbeat indie pop',
+      });
+    });
+
+    it('maps sound-effect duration', async () => {
+      await instance.textToSpeech({
+        input: 'soda can opening',
+        model: 'fal-ai/elevenlabs/sound-effects/v2',
+        params: { durationSeconds: 2.5 },
+        voice: '',
+      });
+      const [, { input }] = subscribed();
+      expect(input).toEqual({ duration_seconds: 2.5, text: 'soda can opening' });
+    });
+
+    it('fails cleanly when fal returns no audio url', async () => {
+      (mockFal.subscribe as any).mockResolvedValue({ data: {} });
+      await expect(
+        instance.textToSpeech({ input: 'x', model: 'fal-ai/elevenlabs/tts/turbo-v2.5', voice: '' }),
+      ).rejects.toMatchObject({ errorType: bizErrorType });
+    });
+
+    it('rejects unknown audio endpoints before calling fal', async () => {
+      await expect(
+        instance.textToSpeech({ input: 'x', model: 'fal-ai/flux/dev', voice: '' }),
+      ).rejects.toThrow(/Unsupported fal audio endpoint/);
+      expect(mockFal.subscribe).not.toHaveBeenCalled();
+    });
+  });
 });

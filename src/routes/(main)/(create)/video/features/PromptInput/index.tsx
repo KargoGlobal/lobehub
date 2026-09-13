@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import VideoFreeQuotaInfo from '@/business/client/features/VideoFreeQuotaInfo';
 import { loginRequired } from '@/components/Error/loginRequiredNotification';
+import { BrandKitAction } from '@/features/BrandKit';
 import Action from '@/features/ChatInput/ActionBar/components/Action';
 import ModelSwitchPanel from '@/features/ModelSwitchPanel';
 import PromptTransformAction from '@/features/PromptTransform/PromptTransformAction';
@@ -28,6 +29,7 @@ import {
 } from '@/routes/(main)/(create)/features/GenerationInput';
 import { AspectRatioSelect } from '@/routes/(main)/(create)/image/features/ConfigPanel';
 import Select from '@/routes/(main)/(create)/image/features/ConfigPanel/components/Select';
+import AdVoiceAction from '@/routes/(main)/(create)/video/features/AdVoice';
 import AutoAnimateAction from '@/routes/(main)/(create)/video/features/AutoAnimate';
 import CameraDirectorAction from '@/routes/(main)/(create)/video/features/CameraDirector';
 import VideoModelItem from '@/routes/(main)/(create)/video/features/ConfigPanel/components/ModelSelect/VideoModelItem';
@@ -631,6 +633,15 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
               />
               <AutoAnimateAction />
               <CameraDirectorAction />
+              <AdVoiceAction />
+              <BrandKitAction
+                prompt={value ?? ''}
+                target={'video'}
+                onPromptChange={(next) => {
+                  if (!canCreate) return;
+                  setValue(next as any);
+                }}
+              />
               {isSupportDuration && (
                 <Action
                   icon={Clock3}

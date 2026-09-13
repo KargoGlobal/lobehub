@@ -608,6 +608,13 @@ export interface CompileResult {
 }
 
 export interface CompileContext {
+  /**
+   * Pre-compiled brand line (see BrandKit `compileBrandPreamble`), emitted as
+   * its own block right after the reference so the palette rule sits before
+   * the shot list. Kept out of `DirectorPlan` so it never leaks into the
+   * user-editable fields.
+   */
+  brand?: string;
   /** Current resolution in the workspace, used for ad-delivery QA. */
   resolution?: string | null;
   /** Current seed in the workspace, used for reproducibility QA. */
@@ -725,6 +732,8 @@ export const compilePlan = (plan: DirectorPlan, ctx: CompileContext = {}): Compi
       `Subject: ${subject || '[3D form]'}, rendered as clean 3D with physically accurate materials.`,
     );
   }
+
+  if (ctx.brand?.trim()) lines.push(ctx.brand.trim());
 
   const setParts = [
     plan.environment.trim() ? `Set: ${plan.environment.trim()}.` : '',

@@ -93,6 +93,7 @@ import { userMemoriesRouter } from './userMemories';
 import { userMemoryRouter } from './userMemory';
 import { verifyRouter } from './verify';
 import { videoRouter } from './video';
+import { voiceRouter } from './voice';
 import { webBrowsingRouter } from './webBrowsing';
 import { workRouter } from './work';
 import { workspaceUserSettingsRouter } from './workspaceUserSettings';
@@ -173,6 +174,7 @@ export const lambdaRouter = router({
   userMemory: userMemoryRouter,
   verify: verifyRouter,
   video: videoRouter,
+  voice: voiceRouter,
   webBrowsing: webBrowsingRouter,
   work: workRouter,
   workspace: workspaceRouter,

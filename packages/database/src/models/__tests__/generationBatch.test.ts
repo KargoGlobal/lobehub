@@ -547,6 +547,30 @@ describe('GenerationBatchModel', () => {
       expect(mockGetFullFileUrl).toHaveBeenCalledWith('files/person.png');
     });
 
+    it('should expand talking-performer inputs (audioUrl, videoUrl) and keep the disclosure marker', async () => {
+      await serverDB.insert(generationBatches).values({
+        ...testBatch,
+        userId,
+        config: {
+          audioUrl: 'generations/audio/vo.mp3',
+          disclosure: 'synthetic_performer',
+          prompt: 'Ad voice',
+          videoUrl: 'files/take.mp4',
+        } as any,
+      });
+
+      const results = await generationBatchModel.queryGenerationBatchesByTopicIdWithGenerations(
+        testTopic.id,
+      );
+
+      expect(results[0].config).toEqual({
+        audioUrl: 'https://example.com/generations/audio/vo.mp3',
+        disclosure: 'synthetic_performer',
+        prompt: 'Ad voice',
+        videoUrl: 'https://example.com/files/take.mp4',
+      });
+    });
+
     it('should handle config without imageUrls', async () => {
       const [createdBatch] = await serverDB
         .insert(generationBatches)

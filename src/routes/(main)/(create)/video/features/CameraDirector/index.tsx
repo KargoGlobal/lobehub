@@ -8,6 +8,7 @@ import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import ImperativeModal from '@/components/ImperativeModal';
+import { compileBrandPreamble, useBrandKits } from '@/features/BrandKit';
 import Action from '@/features/ChatInput/ActionBar/components/Action';
 import { usePermission } from '@/hooks/usePermission';
 import { useVideoStore } from '@/store/video';
@@ -232,6 +233,8 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
   );
 
   const hasStartFrame = Boolean(imageUrl);
+  const { activeKit } = useBrandKits();
+  const brand = useMemo(() => compileBrandPreamble(activeKit, 'video'), [activeKit]);
 
   const [plan, setPlan] = useState<DirectorPlan>(() => ({
     ...createDefaultPlan('product3d'),
@@ -298,7 +301,10 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
     });
   }, []);
 
-  const result = useMemo(() => compilePlan(plan, { resolution, seed }), [plan, resolution, seed]);
+  const result = useMemo(
+    () => compilePlan(plan, { brand, resolution, seed }),
+    [brand, plan, resolution, seed],
+  );
 
   const isProduct = plan.template === 'product3d';
   const isOnModel = plan.template === 'onModel';

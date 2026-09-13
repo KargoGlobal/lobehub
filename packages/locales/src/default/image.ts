@@ -159,4 +159,37 @@ export default {
   'topic.visibility.existingLocked':
     'Visibility is fixed for the current topic. Create a new topic to choose a different space.',
   'topic.workspaceTitle': 'Workspace',
+  'brandKit.title': 'Brand kit',
+  'brandKit.pickHint':
+    'Pick the brand to apply. The palette and art direction are appended to the prompt; Camera Director and Auto-animate pick it up automatically.',
+  'brandKit.none': 'No brand',
+  'brandKit.untitled': 'Untitled brand',
+  'brandKit.manage': 'Manage kits',
+  'brandKit.apply': 'Apply to prompt',
+  'brandKit.applied': '{{name}} brand notes added to the prompt',
+  'brandKit.manageTitle': 'Brand kits',
+  'brandKit.yourKits': 'Your kits',
+  'brandKit.new': 'New kit',
+  'brandKit.empty':
+    'No kits yet. Add one to keep colours, fonts and art direction consistent across every generation.',
+  'brandKit.saved': 'Brand kit saved',
+  'brandKit.save': 'Save kit',
+  'brandKit.delete': 'Delete kit',
+  'brandKit.close': 'Close',
+  'brandKit.logoUploadFailed': 'Logo upload failed',
+  'brandKit.field.name': 'Brand name',
+  'brandKit.field.namePlaceholder': 'e.g. Acme Outdoor',
+  'brandKit.field.colors': 'Colours (hex, primary first, up to {{max}})',
+  'brandKit.field.fonts': 'Fonts (display first, up to {{max}})',
+  'brandKit.field.fontsPlaceholder': 'e.g. Inter',
+  'brandKit.field.logo': 'Logo',
+  'brandKit.field.logoUpload': 'Upload logo',
+  'brandKit.field.logoReplace': 'Replace logo',
+  'brandKit.field.logoRemove': 'Remove',
+  'brandKit.field.styleNotes': 'Art direction',
+  'brandKit.field.styleNotesPlaceholder':
+    'e.g. Warm daylight, matte surfaces, real textures. No lens flare, no neon, no stock-photo smiles.',
+  'brandKit.field.toneOfVoice': 'Voice & tone',
+  'brandKit.field.toneOfVoicePlaceholder':
+    'e.g. Confident and plain-spoken. Short sentences. Never salesy, never exclamation marks.',
 };

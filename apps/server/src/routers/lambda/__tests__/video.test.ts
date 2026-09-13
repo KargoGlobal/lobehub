@@ -151,7 +151,7 @@ function setupMocks() {
     cb({ insert: mockInsert, update: mockDbUpdate }),
   );
 
-  return { mockUpdate };
+  return { mockInsert, mockUpdate };
 }
 
 // ---- import router AFTER mocks are set up ----
@@ -361,6 +361,55 @@ describe('videoRouter', () => {
         },
         success: true,
       });
+    });
+  });
+
+  describe('createVideo - talking-performer inputs', () => {
+    it('stores audioUrl/videoUrl as storage keys and keeps the disclosure marker', async () => {
+      const { mockInsert } = setupMocks();
+      const getKeyFromFullUrl = vi.fn(async (url: string) =>
+        url.includes('/f/') ? `files/${url.split('/f/')[1]}` : null,
+      );
+      vi.mocked(FileService).mockImplementation(
+        () => ({ getFullFileUrl: vi.fn().mockResolvedValue(null), getKeyFromFullUrl }) as any,
+      );
+      mockCreateVideo.mockResolvedValue({ inferenceId: 'inf-av', useWebhook: true });
+
+      const caller = videoRouter.createCaller(mockCtx);
+      await caller.createVideo({
+        generationTopicId: 'topic-1',
+        model: 'fal-ai/bytedance/omnihuman/v1.5',
+        params: {
+          audioUrl: 'https://app.example.com/f/audio-1',
+          disclosure: 'synthetic_performer',
+          imageUrl: 'https://app.example.com/f/face-1',
+          prompt: 'Ad voice',
+          resolution: '1080p',
+        },
+        provider: 'fal',
+      });
+
+      // Batch config (first insert) holds keys, never URLs, plus the marker.
+      const batchValues = mockInsert.mock.results[0].value.values.mock.calls[0][0];
+      expect(batchValues.config).toMatchObject({
+        audioUrl: 'files/audio-1',
+        disclosure: 'synthetic_performer',
+        imageUrl: 'files/face-1',
+      });
+      expect(getKeyFromFullUrl).toHaveBeenCalledWith('https://app.example.com/f/audio-1');
+      expect(getKeyFromFullUrl).toHaveBeenCalledWith('https://app.example.com/f/face-1');
+      // The runtime still receives the full, fetchable URLs.
+      expect(mockCreateVideo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'fal-ai/bytedance/omnihuman/v1.5',
+          params: expect.objectContaining({
+            audioUrl: 'https://app.example.com/f/audio-1',
+            disclosure: 'synthetic_performer',
+            imageUrl: 'https://app.example.com/f/face-1',
+          }),
+        }),
+        expect.anything(),
+      );
     });
   });
 });

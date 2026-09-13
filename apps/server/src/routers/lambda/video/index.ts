@@ -6,7 +6,7 @@ import {
   buildMappedBusinessModelFields,
   resolveBusinessModelMapping,
 } from '@lobechat/business-model-runtime';
-import { ChatErrorType, RequestTrigger } from '@lobechat/types';
+import { ChatErrorType, RequestTrigger, VIDEO_INPUT_URL_FIELDS } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 import { and, eq } from 'drizzle-orm';
@@ -134,10 +134,32 @@ export const videoRouter = router({
         }
       }
 
+      // Process the talking-performer inputs (driving audio, clip to lip-sync)
+      for (const field of VIDEO_INPUT_URL_FIELDS) {
+        const value = (params as Record<string, unknown>)[field];
+        if (typeof value !== 'string' || !value) continue;
+        try {
+          const key = await fileService.getKeyFromFullUrl(value);
+          if (key) {
+            log('Converted %s to key: %s -> %s', field, value, key);
+            configForDatabase = { ...configForDatabase, [field]: key };
+          }
+        } catch (error) {
+          console.error('Error converting %s to key: %O', field, error);
+        }
+      }
+
       // In development, convert localhost proxy URLs to S3 URLs for API access
       let generationParams = params;
       if (process.env.NODE_ENV === 'development') {
         const updates: Record<string, unknown> = {};
+
+        for (const field of VIDEO_INPUT_URL_FIELDS) {
+          const key = (configForDatabase as Record<string, unknown>)[field];
+          if (typeof key !== 'string' || !key || key.startsWith('http')) continue;
+          const s3Url = await fileService.getFullFileUrl(key);
+          if (s3Url) updates[field] = s3Url;
+        }
 
         if (typeof params.imageUrl === 'string' && params.imageUrl) {
           const s3Url = await fileService.getFullFileUrl(configForDatabase.imageUrl as string);
