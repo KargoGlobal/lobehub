@@ -392,6 +392,49 @@ const falImageModels: AIImageModelCard[] = [
     releasedAt: '2026-09-13',
     type: 'image',
   },
+  // Typography tool endpoints: both are text-to-image (no `imageUrl` input), since that's
+  // what the live schemas actually support — Ideogram and Recraft's text accuracy comes from
+  // generating a fresh image around the copy, not editing one. The Typography tool still runs
+  // them through `createEditedImage`, so the source image's url rides along as an ignored
+  // `imageUrl` field (the fal endpoints don't define that field and drop it), the same pattern
+  // the Try-on card above relies on. `enabled:false`: invoked directly by the Typography tool,
+  // never from the model picker. Pricing verified on the fal model pages (2026-09-12).
+  {
+    description:
+      'Ideogram V4 via fal: renders headlines, CTAs and price callouts as accurate, legible ' +
+      'text inside a freshly generated image. $0.0075/megapixel TURBO, $0.015/megapixel ' +
+      'BALANCED (default), $0.025/megapixel QUALITY.',
+    displayName: 'Ideogram V4',
+    enabled: false,
+    id: 'ideogram/v4',
+    organization: 'Ideogram',
+    parameters: {
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.015, strategy: 'fixed', unit: 'megapixel' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
+  {
+    description:
+      'Recraft V4 Pro Vector via fal: generates clean vector-style posters, logos and ad ' +
+      "graphics with sharp, legible on-image text — Recraft's signature typography strength. " +
+      '$0.30 per image.',
+    displayName: 'Recraft Vector',
+    enabled: false,
+    id: 'fal-ai/recraft/v4/pro/text-to-vector',
+    organization: 'Recraft',
+    parameters: {
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.3, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
 ];
 
 const falVideoParamsSchema = {

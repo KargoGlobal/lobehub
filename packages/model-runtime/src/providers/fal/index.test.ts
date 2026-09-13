@@ -227,6 +227,39 @@ describe('LobeFalAI', () => {
       expect(input).not.toHaveProperty('aspectRatio');
     });
 
+    it('should resolve a bare `ideogram/` model id without the default `fal-ai/` prefix', async () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: { images: [{ url: 'https://example.com/image.jpg' }] },
+      };
+      mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+      await instance.createImage({
+        model: 'ideogram/v4',
+        params: { prompt: 'A poster with the text "SALE"' } as any,
+      });
+
+      const [endpoint] = mockFal.subscribe.mock.calls[0] as any;
+      expect(endpoint).toBe('ideogram/v4');
+    });
+
+    it('should map quality to rendering_speed (Ideogram V4 typography tiers)', async () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: { images: [{ url: 'https://example.com/image.jpg' }] },
+      };
+      mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+      await instance.createImage({
+        model: 'ideogram/v4',
+        params: { prompt: 'A poster with the text "SALE"', quality: 'QUALITY' } as any,
+      });
+
+      const [, { input }] = mockFal.subscribe.mock.calls[0] as any;
+      expect(input).toHaveProperty('rendering_speed', 'QUALITY');
+      expect(input).not.toHaveProperty('quality');
+    });
+
     it('should map imageUrls parameter to image_urls', async () => {
       // Arrange
       const mockImageResponse = {
