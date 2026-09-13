@@ -17,8 +17,8 @@ type Mode = 'place' | 'relight' | 'resize' | 'tryon';
 
 /**
  * `fal-ai/image-editing/reframe` only accepts these nine ratios — presenting
- * anything finer (an exact IAB or Kargo pixel size) would promise precision
- * the endpoint can't deliver. Exact-pixel export is tracked separately.
+ * anything finer (an exact IAB or brand-specific pixel size) would promise
+ * precision the endpoint can't deliver. Exact-pixel export is tracked separately.
  */
 const RESIZE_RATIOS = [
   { label: 'editTool.resize.ratio.21:9', value: '21:9' },
