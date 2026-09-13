@@ -56,6 +56,15 @@ export interface VideoGenerationAsset extends BaseGenerationAsset {
 
 export type GenerationAsset = ImageGenerationAsset | VideoGenerationAsset;
 
+/**
+ * Extra image-URL fields the image edit tools send alongside `imageUrl`
+ * (mask editor → `mask_url`; try-on → `model_image`, `garment_image`).
+ * Like `imageUrl`/`imageUrls` they are stored as storage keys and expanded
+ * back to URLs on read, so no presigned URL lands in the database and
+ * recreate / reuse-settings keeps working.
+ */
+export const IMAGE_EDIT_URL_FIELDS = ['mask_url', 'model_image', 'garment_image'] as const;
+
 export interface GenerationConfig {
   aspectRatio?: string;
   cfg?: number;

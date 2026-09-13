@@ -1,7 +1,7 @@
 import { BRANDING_PROVIDER, ENABLE_BUSINESS_FEATURES } from '@lobechat/business-const';
 import { isLobeHubModelAvailable } from '@lobechat/business-model-bank/model-config';
 import { resolveBusinessModelMapping } from '@lobechat/business-model-runtime';
-import { ChatErrorType } from '@lobechat/types';
+import { ChatErrorType, IMAGE_EDIT_URL_FIELDS } from '@lobechat/types';
 import { TRPCError } from '@trpc/server';
 import debug from 'debug';
 import { and, eq } from 'drizzle-orm';
@@ -154,6 +154,23 @@ export const imageRouter = router({
         }
       }
 
+      // 3) Process the edit tools' extra image-URL fields the same way as imageUrl
+      for (const field of IMAGE_EDIT_URL_FIELDS) {
+        const value = (params as Record<string, unknown>)[field];
+        if (typeof value !== 'string' || !value) continue;
+        try {
+          const key = await fileService.getKeyFromFullUrl(value);
+          if (key) {
+            log('Converted %s to key: %s -> %s', field, value, key);
+            configForDatabase = { ...configForDatabase, [field]: key };
+          } else {
+            log('Failed to extract key from %s: %s', field, value);
+          }
+        } catch (error) {
+          console.error('Error converting %s to key: %O', field, error);
+        }
+      }
+
       // In development, convert localhost proxy URLs to S3 URLs for async task access
       let generationParams = params;
       if (process.env.NODE_ENV === 'development') {
@@ -175,6 +192,14 @@ export const imageRouter = router({
           );
           log('Dev: converted proxy URLs to S3 URLs: %O', s3Urls);
           updates.imageUrls = s3Urls;
+        }
+
+        // Handle the edit tools' extra image-URL fields
+        for (const field of IMAGE_EDIT_URL_FIELDS) {
+          const key = (configForDatabase as Record<string, unknown>)[field];
+          if (typeof key !== 'string' || !key || key.startsWith('http')) continue;
+          const s3Url = await fileService.getFullFileUrl(key);
+          if (s3Url) updates[field] = s3Url;
         }
 
         if (Object.keys(updates).length > 0) {
