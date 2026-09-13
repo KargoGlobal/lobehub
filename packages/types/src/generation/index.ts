@@ -57,6 +57,14 @@ export interface VideoGenerationAsset extends BaseGenerationAsset {
 export type GenerationAsset = ImageGenerationAsset | VideoGenerationAsset;
 
 /**
+ * Review status a team sets on a generation batch's output — "nothing
+ * reviewed yet" / "approved" / "needs changes". Mirrors the
+ * `generationBatches.approvalStatus` column; see that schema for why this is
+ * batch-level rather than per-generation.
+ */
+export type GenerationBatchApprovalStatus = 'pending' | 'approved' | 'changesRequested';
+
+/**
  * Extra image-URL fields the image edit tools send alongside `imageUrl`
  * (mask editor → `mask_url`; try-on → `model_image`, `garment_image`).
  * Like `imageUrl`/`imageUrls` they are stored as storage keys and expanded
@@ -119,6 +127,13 @@ export interface Generation {
 }
 
 export interface GenerationBatch {
+  /**
+   * Always populated by the server (the DB column defaults to `pending` and
+   * is NOT NULL). Optional here only so long-standing test fixtures built
+   * before this field existed don't all need updating; UI readers should
+   * fall back to `'pending'`.
+   */
+  approvalStatus?: GenerationBatchApprovalStatus;
   avgLatencyMs?: number | null;
   config?: GenerationConfig;
   createdAt: Date;

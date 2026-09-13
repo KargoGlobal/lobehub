@@ -1064,6 +1064,13 @@
       "when": 1787815769048,
       "tag": "0151_document_comments",
       "breakpoints": true
+    },
+    {
+      "idx": 152,
+      "version": "7",
+      "when": 1789268609113,
+      "tag": "0152_generation_batches_approval_status",
+      "breakpoints": true
     }
   ],
   "version": "6"

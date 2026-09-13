@@ -9,6 +9,7 @@ vi.mock('@/libs/trpc/client', () => ({
     generationBatch: {
       getGenerationBatches: { query: vi.fn() },
       deleteGenerationBatch: { mutate: vi.fn() },
+      setBatchApprovalStatus: { mutate: vi.fn() },
     },
   },
 }));
@@ -32,5 +33,16 @@ describe('GenerationBatchService', () => {
     await generationBatchService.deleteGenerationBatch(batchId);
 
     expect(lambdaClient.generationBatch.deleteGenerationBatch.mutate).toBeCalledWith({ batchId });
+  });
+
+  it('setBatchApprovalStatus should call lambdaClient with correct params', async () => {
+    const batchId = 'test-batch-id';
+
+    await generationBatchService.setBatchApprovalStatus(batchId, 'approved');
+
+    expect(lambdaClient.generationBatch.setBatchApprovalStatus.mutate).toBeCalledWith({
+      approvalStatus: 'approved',
+      batchId,
+    });
   });
 });

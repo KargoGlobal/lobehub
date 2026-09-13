@@ -78,6 +78,19 @@ export const generationBatches = pgTable(
       .notNull()
       .references(() => generationTopics.id, { onDelete: 'cascade' }),
 
+    /**
+     * Review status a team sets on this batch's output. `pending` is the
+     * default for every new batch (nothing reviewed yet); `approved` and
+     * `changesRequested` are explicit reviewer decisions. Batch-level (not
+     * per-generation) because a reviewer approves or rejects the creative
+     * output as a whole, not one variant image/clip inside it.
+     */
+    approvalStatus: text('approval_status', {
+      enum: ['pending', 'approved', 'changesRequested'],
+    })
+      .default('pending')
+      .notNull(),
+
     /** Provider name */
     provider: text('provider').notNull(),
 
@@ -105,6 +118,11 @@ export const generationBatches = pgTable(
     index('generation_batches_user_id_idx').on(t.userId),
     index('generation_batches_topic_id_idx').on(t.generationTopicId),
     index('generation_batches_workspace_id_idx').on(t.workspaceId),
+    // Feed filtering ("show me what's pending review") without a heap scan
+    index('generation_batches_topic_id_approval_status_idx').on(
+      t.generationTopicId,
+      t.approvalStatus,
+    ),
   ],
 );
 

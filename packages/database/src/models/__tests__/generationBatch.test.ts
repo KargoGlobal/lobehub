@@ -792,6 +792,77 @@ describe('GenerationBatchModel', () => {
     });
   });
 
+  describe('setApprovalStatus', () => {
+    it('defaults a new batch to pending', async () => {
+      const [createdBatch] = await serverDB
+        .insert(generationBatches)
+        .values({ ...testBatch, userId })
+        .returning();
+
+      expect(createdBatch.approvalStatus).toBe('pending');
+    });
+
+    it('updates the approval status', async () => {
+      const [createdBatch] = await serverDB
+        .insert(generationBatches)
+        .values({ ...testBatch, userId })
+        .returning();
+
+      const result = await generationBatchModel.setApprovalStatus(createdBatch.id, 'approved');
+
+      expect(result?.approvalStatus).toBe('approved');
+
+      const dbBatch = await serverDB.query.generationBatches.findFirst({
+        where: eq(generationBatches.id, createdBatch.id),
+      });
+      expect(dbBatch?.approvalStatus).toBe('approved');
+    });
+
+    it('returns undefined for a non-existent batch', async () => {
+      const result = await generationBatchModel.setApprovalStatus('non-existent-id', 'approved');
+      expect(result).toBeUndefined();
+    });
+
+    it('does NOT update batches belonging to other users', async () => {
+      const [otherUserBatch] = await serverDB
+        .insert(generationBatches)
+        .values({ ...testBatch, userId: otherUserId })
+        .returning();
+
+      const result = await generationBatchModel.setApprovalStatus(otherUserBatch.id, 'approved');
+
+      expect(result).toBeUndefined();
+      const stillPending = await serverDB.query.generationBatches.findFirst({
+        where: eq(generationBatches.id, otherUserBatch.id),
+      });
+      expect(stillPending?.approvalStatus).toBe('pending');
+    });
+
+    it('lets any workspace member update a shared batch', async () => {
+      await serverDB.insert(generationTopics).values({
+        id: 'workspace-topic-for-approval',
+        title: 'Workspace Topic',
+        type: 'image',
+        userId,
+        workspaceId,
+      });
+      const [createdBatch] = await serverDB
+        .insert(generationBatches)
+        .values({
+          ...testBatch,
+          generationTopicId: 'workspace-topic-for-approval',
+          userId,
+          workspaceId,
+        })
+        .returning();
+
+      const otherMemberModel = new GenerationBatchModel(serverDB, otherUserId, workspaceId);
+      const result = await otherMemberModel.setApprovalStatus(createdBatch.id, 'changesRequested');
+
+      expect(result?.approvalStatus).toBe('changesRequested');
+    });
+  });
+
   describe('user isolation security tests', () => {
     it('should enforce user data isolation across all methods', async () => {
       // Create batches for both users with same topic

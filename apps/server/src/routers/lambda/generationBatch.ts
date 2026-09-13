@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import { z } from 'zod';
 
 import { withScopedPermission } from '@/business/server/trpc-middlewares/rbacPermission';
@@ -78,6 +79,37 @@ export const generationBatchRouter = router({
       );
 
       return batches.map((b) => ({ ...b, avgLatencyMs: latencyMap.get(b.model) ?? null }));
+    }),
+
+  /**
+   * Set a batch's review status (pending / approved / changesRequested).
+   * Creator-or-workspace-owner, same gate as `deleteGenerationBatch` — a
+   * reviewer is typically a workspace owner approving a member's output, but
+   * the creator may also update their own batch's status (e.g. re-request
+   * review after an edit).
+   */
+  setBatchApprovalStatus: generationBatchProcedure
+    .use(withScopedPermission('generation_batch:update'))
+    .input(
+      z.object({
+        approvalStatus: z.enum(['pending', 'approved', 'changesRequested']),
+        batchId: z.string(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const batch = await ctx.generationBatchModel.findById(input.batchId);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Generation batch not found' });
+      }
+      assertWorkspaceRowManageable(ctx, batch.userId, 'generation batch');
+
+      if (batch.approvalStatus === input.approvalStatus) return batch;
+
+      const updatedBatch = await ctx.generationBatchModel.setApprovalStatus(
+        input.batchId,
+        input.approvalStatus,
+      );
+      return updatedBatch ?? batch;
     }),
 });
 

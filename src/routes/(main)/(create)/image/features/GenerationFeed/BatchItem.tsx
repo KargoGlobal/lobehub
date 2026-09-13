@@ -14,11 +14,12 @@ import { useTranslation } from 'react-i18next';
 
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import useRenderBusinessBatchItem from '@/business/client/hooks/useRenderBusinessBatchItem';
+import { ApprovalStatusTag } from '@/routes/(main)/(create)/features/GenerationFeed/ApprovalStatusTag';
 import { GenerationInvalidAPIKey } from '@/routes/(main)/(create)/features/GenerationInput';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useImageStore } from '@/store/image';
 import { AsyncTaskErrorType } from '@/types/asyncTask';
-import { type GenerationBatch } from '@/types/generation';
+import { type GenerationBatch, type GenerationBatchApprovalStatus } from '@/types/generation';
 
 import { GenerationItem } from './GenerationItem';
 import { ReferenceImages } from './ReferenceImages';
@@ -67,6 +68,7 @@ export const GenerationBatchItem = memo<GenerationBatchItemProps>(({ batch }) =>
   const activeTopicId = useImageStore((s) => s.activeGenerationTopicId);
   const removeGenerationBatch = useImageStore((s) => s.removeGenerationBatch);
   const reuseSettings = useImageStore((s) => s.reuseSettings);
+  const setBatchApprovalStatus = useImageStore((s) => s.setBatchApprovalStatus);
   const activeWorkspaceId = useActiveWorkspaceId();
   const { shouldRenderBusinessBatchItem, businessBatchItem } = useRenderBusinessBatchItem(batch);
 
@@ -112,6 +114,15 @@ export const GenerationBatchItem = memo<GenerationBatchItemProps>(({ batch }) =>
       await removeGenerationBatch(batch.id, activeTopicId);
     } catch (error) {
       console.error('Failed to delete batch:', error);
+    }
+  };
+
+  const handleApprovalStatusChange = async (next: GenerationBatchApprovalStatus) => {
+    try {
+      await setBatchApprovalStatus(batch.id, next);
+    } catch (error) {
+      console.error('Failed to update approval status:', error);
+      toast.error(t('generation.approval.updateFailed'));
     }
   };
 
@@ -176,6 +187,10 @@ export const GenerationBatchItem = memo<GenerationBatchItemProps>(({ batch }) =>
           <Tag variant={'borderless'}>
             {t('generation.metadata.count', { count: batch.generations.length })}
           </Tag>
+          <ApprovalStatusTag
+            status={batch.approvalStatus ?? 'pending'}
+            onChange={handleApprovalStatusChange}
+          />
         </Flexbox>
         <Flexbox horizontal align={'center'} gap={6}>
           {showCreator && (

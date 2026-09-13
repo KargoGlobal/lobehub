@@ -9,7 +9,7 @@ import { generationService } from '@/services/generation';
 import { generationBatchService } from '@/services/generationBatch';
 import { type StoreSetter } from '@/store/types';
 import { AsyncTaskStatus } from '@/types/asyncTask';
-import { type GenerationBatch } from '@/types/generation';
+import { type GenerationBatch, type GenerationBatchApprovalStatus } from '@/types/generation';
 import { setNamespace } from '@/utils/storeDebug';
 
 import { type ImageStore } from '../../store';
@@ -125,6 +125,33 @@ export class GenerationBatchActionImpl {
 
     // 2. Call backend service
     await generationBatchService.deleteGenerationBatch(batchId);
+
+    // 3. Refresh data to ensure consistency
+    await refreshGenerationBatches();
+  };
+
+  /**
+   * Set a batch's review status. Optimistically updates the feed, then
+   * persists and refreshes — same shape as `internal_deleteGenerationBatch`.
+   */
+  setBatchApprovalStatus = async (
+    batchId: string,
+    approvalStatus: GenerationBatchApprovalStatus,
+  ): Promise<void> => {
+    const { activeGenerationTopicId, internal_dispatchGenerationBatch, refreshGenerationBatches } =
+      this.#get();
+
+    if (!activeGenerationTopicId) return;
+
+    // 1. Immediately update frontend state (optimistic update)
+    internal_dispatchGenerationBatch(
+      activeGenerationTopicId,
+      { type: 'updateBatch', id: batchId, value: { approvalStatus } },
+      n('setBatchApprovalStatus'),
+    );
+
+    // 2. Call backend service
+    await generationBatchService.setBatchApprovalStatus(batchId, approvalStatus);
 
     // 3. Refresh data to ensure consistency
     await refreshGenerationBatches();
