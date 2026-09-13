@@ -392,6 +392,49 @@ const falImageModels: AIImageModelCard[] = [
     releasedAt: '2026-09-13',
     type: 'image',
   },
+  // Typography tool endpoints: both are text-to-image (no `imageUrl` input), since that's
+  // what the live schemas actually support — Ideogram and Recraft's text accuracy comes from
+  // generating a fresh image around the copy, not editing one. The Typography tool still runs
+  // them through `createEditedImage`, so the source image's url rides along as an ignored
+  // `imageUrl` field (the fal endpoints don't define that field and drop it), the same pattern
+  // the Try-on card above relies on. `enabled:false`: invoked directly by the Typography tool,
+  // never from the model picker. Pricing verified on the fal model pages (2026-09-12).
+  {
+    description:
+      'Ideogram V4 via fal: renders headlines, CTAs and price callouts as accurate, legible ' +
+      'text inside a freshly generated image. $0.0075/megapixel TURBO, $0.015/megapixel ' +
+      'BALANCED (default), $0.025/megapixel QUALITY.',
+    displayName: 'Ideogram V4',
+    enabled: false,
+    id: 'ideogram/v4',
+    organization: 'Ideogram',
+    parameters: {
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.015, strategy: 'fixed', unit: 'megapixel' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
+  {
+    description:
+      'Recraft V4 Pro Vector via fal: generates clean vector-style posters, logos and ad ' +
+      "graphics with sharp, legible on-image text — Recraft's signature typography strength. " +
+      '$0.30 per image.',
+    displayName: 'Recraft Vector',
+    enabled: false,
+    id: 'fal-ai/recraft/v4/pro/text-to-vector',
+    organization: 'Recraft',
+    parameters: {
+      prompt: { default: '' },
+    },
+    pricing: {
+      units: [{ name: 'imageGeneration', rate: 0.3, strategy: 'fixed', unit: 'image' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'image',
+  },
 ];
 
 const falVideoParamsSchema = {
@@ -562,6 +605,48 @@ const falAvatarVideoModels: AIVideoModelCard[] = [
   },
 ];
 
+// Video-to-video restyle endpoints: fix one generated clip (wardrobe, props,
+// look) instead of regenerating from scratch. Both are `enabled: false`
+// utilities invoked by the Video Restyle tool (never from the model picker).
+// `videoUrl` rides as an extra runtime param alongside `prompt`, same as the
+// talking-performer cards above. Endpoint ids and pricing verified against
+// fal's live OpenAPI schemas and model pages (2026-09-12).
+const falVideoRestyleModels: AIVideoModelCard[] = [
+  {
+    description:
+      'Lucy Edit [Pro] via fal: restyle an existing clip in place — swap an outfit, object, ' +
+      'face or the whole look — while keeping the rest of the shot, motion and timing intact. ' +
+      "720p output; the schema exposes only that tier today despite fal's pricing page also " +
+      'listing a 480p rate.',
+    displayName: 'Lucy Edit [Pro]',
+    enabled: false,
+    id: 'decart/lucy-edit/pro',
+    organization: 'Decart',
+    parameters: { prompt: { default: '' } },
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.15, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+  {
+    description:
+      'Kling O3 Edit [Pro] via fal: edit an existing clip with a text prompt (reference it as ' +
+      '@Video1) — restyle the look, swap wardrobe or props, while optionally keeping the ' +
+      'original audio. Source clip must be 3-15s, 720-3840px, .mp4/.mov, under 200MB.',
+    displayName: 'Kling O3 Edit [Pro]',
+    enabled: false,
+    id: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+    organization: 'Kuaishou',
+    parameters: { prompt: { default: '' } },
+    pricing: {
+      units: [{ name: 'videoGeneration', rate: 0.168, strategy: 'fixed', unit: 'second' }],
+    },
+    releasedAt: '2026-09-12',
+    type: 'video',
+  },
+];
+
 // Audio endpoints for the Ad Voice tool (voiceover, music bed, sound effect).
 // Synchronous on fal; output is stored as a file, not a generation. `tts` is
 // the closest existing card type for all three (no `sfx`/music card type with
@@ -630,6 +715,7 @@ export const allModels = [
   ...falVideoModels,
   ...falH3VideoModels,
   ...falAvatarVideoModels,
+  ...falVideoRestyleModels,
   ...falAudioModels,
 ];
 

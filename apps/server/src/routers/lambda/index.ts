@@ -52,6 +52,7 @@ import { documentCommentRouter } from './documentComment';
 import { expertiseRouter } from './expertise';
 import { exporterRouter } from './exporter';
 import { fileRouter } from './file';
+import { finalCutRouter } from './finalCut';
 import { followUpActionRouter } from './followUpAction';
 import { generationRouter } from './generation';
 import { generationBatchRouter } from './generationBatch';
@@ -129,6 +130,7 @@ export const lambdaRouter = router({
   documentComment: documentCommentRouter,
   exporter: exporterRouter,
   file: fileRouter,
+  finalCut: finalCutRouter,
   followUpAction: followUpActionRouter,
   generation: generationRouter,
   generationBatch: generationBatchRouter,

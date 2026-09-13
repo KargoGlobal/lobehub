@@ -63,6 +63,7 @@ describe('generationBatchRouter', () => {
       userId: 'test-user',
       workspaceId: null,
       generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
       provider: 'test-provider',
       model: 'test-model',
       prompt: 'Test prompt',
@@ -112,6 +113,7 @@ describe('generationBatchRouter', () => {
       userId: 'test-user',
       workspaceId: null,
       generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
       provider: 'test-provider',
       model: 'test-model',
       prompt: 'Test prompt',
@@ -161,6 +163,7 @@ describe('generationBatchRouter', () => {
       userId: 'test-user',
       workspaceId: null,
       generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
       provider: 'test-provider',
       model: 'test-model',
       prompt: 'Test prompt',
@@ -247,6 +250,7 @@ describe('generationBatchRouter', () => {
       userId: 'test-user',
       workspaceId: null,
       generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
       provider: 'test-provider',
       model: 'test-model',
       prompt: 'Batch with many generations',
@@ -331,6 +335,7 @@ describe('generationBatchRouter', () => {
       userId: 'test-user',
       workspaceId: null,
       generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
       provider: 'test-provider',
       model: 'test-model',
       prompt: 'Test prompt',
@@ -467,6 +472,155 @@ describe('generationBatchRouter', () => {
       const result = await caller.getGenerationBatches({ topicId: 'topic-1', type: 'video' });
 
       expect(result).toEqual([{ ...mockBatches[0], avgLatencyMs: null }]);
+    });
+  });
+
+  describe('setBatchApprovalStatus', () => {
+    const mockBatchId = 'batch-123';
+    const mockBatch: GenerationBatchItem = {
+      id: mockBatchId,
+      userId: 'test-user',
+      workspaceId: null,
+      generationTopicId: 'topic-1',
+      approvalStatus: 'pending',
+      provider: 'test-provider',
+      model: 'test-model',
+      prompt: 'Test prompt',
+      width: 1024,
+      height: 1024,
+      ratio: null,
+      config: null,
+      accessedAt: new Date(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    it('updates the approval status and persists it', async () => {
+      const mockFindById = vi.fn().mockResolvedValue(mockBatch);
+      const mockSetApprovalStatus = vi
+        .fn()
+        .mockResolvedValue({ ...mockBatch, approvalStatus: 'approved' });
+
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () =>
+          ({
+            findById: mockFindById,
+            setApprovalStatus: mockSetApprovalStatus,
+          }) as any,
+      );
+
+      const caller = generationBatchRouter.createCaller(mockCtx);
+      const result = await caller.setBatchApprovalStatus({
+        approvalStatus: 'approved',
+        batchId: mockBatchId,
+      });
+
+      expect(mockSetApprovalStatus).toHaveBeenCalledWith(mockBatchId, 'approved');
+      expect(result).toEqual({ ...mockBatch, approvalStatus: 'approved' });
+    });
+
+    it('throws NOT_FOUND when the batch does not exist', async () => {
+      const mockFindById = vi.fn().mockResolvedValue(undefined);
+      const mockSetApprovalStatus = vi.fn();
+
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () =>
+          ({
+            findById: mockFindById,
+            setApprovalStatus: mockSetApprovalStatus,
+          }) as any,
+      );
+
+      const caller = generationBatchRouter.createCaller(mockCtx);
+      await expect(
+        caller.setBatchApprovalStatus({ approvalStatus: 'approved', batchId: 'missing-batch' }),
+      ).rejects.toThrow('Generation batch not found');
+      expect(mockSetApprovalStatus).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op when the batch is already at the requested status', async () => {
+      const mockFindById = vi.fn().mockResolvedValue(mockBatch);
+      const mockSetApprovalStatus = vi.fn();
+
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () =>
+          ({
+            findById: mockFindById,
+            setApprovalStatus: mockSetApprovalStatus,
+          }) as any,
+      );
+
+      const caller = generationBatchRouter.createCaller(mockCtx);
+      const result = await caller.setBatchApprovalStatus({
+        approvalStatus: 'pending',
+        batchId: mockBatchId,
+      });
+
+      expect(result).toEqual(mockBatch);
+      expect(mockSetApprovalStatus).not.toHaveBeenCalled();
+    });
+
+    it('rejects a workspace member who did not create the batch and is not the owner', async () => {
+      const otherUsersBatch: GenerationBatchItem = {
+        ...mockBatch,
+        userId: 'someone-else',
+        workspaceId: 'ws-1',
+      };
+      const mockFindById = vi.fn().mockResolvedValue(otherUsersBatch);
+      const mockSetApprovalStatus = vi.fn();
+
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () =>
+          ({
+            findById: mockFindById,
+            setApprovalStatus: mockSetApprovalStatus,
+          }) as any,
+      );
+
+      const caller = generationBatchRouter.createCaller({
+        ...mockCtx,
+        workspaceId: 'ws-1',
+        workspaceRole: 'member',
+      } as any);
+
+      await expect(
+        caller.setBatchApprovalStatus({ approvalStatus: 'approved', batchId: mockBatchId }),
+      ).rejects.toThrow(/creator or a workspace owner/);
+      expect(mockSetApprovalStatus).not.toHaveBeenCalled();
+    });
+
+    it('allows a workspace owner to approve a batch they did not create', async () => {
+      const otherUsersBatch: GenerationBatchItem = {
+        ...mockBatch,
+        userId: 'someone-else',
+        workspaceId: 'ws-1',
+      };
+      const mockFindById = vi.fn().mockResolvedValue(otherUsersBatch);
+      const mockSetApprovalStatus = vi
+        .fn()
+        .mockResolvedValue({ ...otherUsersBatch, approvalStatus: 'approved' });
+
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () =>
+          ({
+            findById: mockFindById,
+            setApprovalStatus: mockSetApprovalStatus,
+          }) as any,
+      );
+
+      const caller = generationBatchRouter.createCaller({
+        ...mockCtx,
+        workspaceId: 'ws-1',
+        workspaceRole: 'owner',
+      } as any);
+
+      const result = await caller.setBatchApprovalStatus({
+        approvalStatus: 'approved',
+        batchId: mockBatchId,
+      });
+
+      expect(mockSetApprovalStatus).toHaveBeenCalledWith(mockBatchId, 'approved');
+      expect(result).toEqual({ ...otherUsersBatch, approvalStatus: 'approved' });
     });
   });
 });

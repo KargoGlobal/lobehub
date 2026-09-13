@@ -7,6 +7,8 @@ export interface GenerationItemProps {
 }
 
 export interface ActionButtonsProps {
+  /** Actual pixel height of the generated image; feeds the ad-spec validator. */
+  height?: number;
   onCopySeed?: () => void;
   onDelete: () => void;
   onDownload?: () => void;
@@ -17,6 +19,8 @@ export interface ActionButtonsProps {
   showDownload?: boolean;
   /** Source image for the resize/place/relight tool; omit to hide it. */
   sourceUrl?: string;
+  /** Actual pixel width of the generated image; feeds the ad-spec validator. */
+  width?: number;
 }
 
 export interface SuccessStateProps {

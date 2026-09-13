@@ -13,12 +13,17 @@ import { useImageStore } from '@/store/image';
 
 import { buildTryOnRequest, TRY_ON_CATEGORIES, type TryOnCategory } from './MaskEditor/mask';
 
-type Mode = 'place' | 'relight' | 'resize' | 'tryon';
+type Mode = 'place' | 'relight' | 'resize' | 'tryon' | 'typography';
+
+type TypographyStyle = 'photo' | 'vector';
+type TypographyQuality = 'TURBO' | 'BALANCED' | 'QUALITY';
+
+const TYPOGRAPHY_QUALITIES: TypographyQuality[] = ['TURBO', 'BALANCED', 'QUALITY'];
 
 /**
  * `fal-ai/image-editing/reframe` only accepts these nine ratios — presenting
- * anything finer (an exact IAB or Kargo pixel size) would promise precision
- * the endpoint can't deliver. Exact-pixel export is tracked separately.
+ * anything finer (an exact IAB or brand-specific pixel size) would promise
+ * precision the endpoint can't deliver. Exact-pixel export is tracked separately.
  */
 const RESIZE_RATIOS = [
   { label: 'editTool.resize.ratio.21:9', value: '21:9' },
@@ -43,10 +48,13 @@ interface ImageEditToolButtonProps {
 
 /**
  * One popover covering the single-input edit tools (resize, product
- * placement, relight, try-on) instead of separate icons — each needs one
- * text/select/upload input, so a shared small form is simpler than bespoke
- * popovers and matches the Segmented-recipe pattern used elsewhere. Mask-based
- * edits live in MaskEditToolButton, since painting needs a full modal.
+ * placement, relight, try-on, typography) instead of separate icons — each
+ * needs one text/select/upload input, so a shared small form is simpler than
+ * bespoke popovers and matches the Segmented-recipe pattern used elsewhere.
+ * Mask-based edits live in MaskEditToolButton, since painting needs a full
+ * modal. Typography is the odd one out: both its models are text-to-image
+ * (no `imageUrl` input), so it generates a fresh image around the copy
+ * instead of editing `sourceUrl` — see the model comment in `fal.ts`.
  */
 const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onApplied }) => {
   const { t } = useTranslation('image');
@@ -64,6 +72,10 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
   const [modelImageUrl, setModelImageUrl] = useState<string | null>(null);
   const [modelUploading, setModelUploading] = useState(false);
   const [tryOnCategory, setTryOnCategory] = useState<TryOnCategory>('auto');
+  const [typographyHeadline, setTypographyHeadline] = useState('');
+  const [typographyDescription, setTypographyDescription] = useState('');
+  const [typographyStyle, setTypographyStyle] = useState<TypographyStyle>('photo');
+  const [typographyQuality, setTypographyQuality] = useState<TypographyQuality>('BALANCED');
   const [submitting, setSubmitting] = useState(false);
 
   const handleModelFile = useCallback(
@@ -99,7 +111,8 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
     (mode === 'resize' ||
       (mode === 'place' && sceneText.trim().length > 0) ||
       (mode === 'relight' && relightText.trim().length > 0) ||
-      (mode === 'tryon' && !!modelImageUrl));
+      (mode === 'tryon' && !!modelImageUrl) ||
+      (mode === 'typography' && typographyHeadline.trim().length > 0));
 
   const handleApply = useCallback(async () => {
     if (!canApply) return;
@@ -128,6 +141,23 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
           model: 'fal-ai/iclight-v2',
           params: { prompt: description },
         });
+      } else if (mode === 'typography') {
+        const headline = typographyHeadline.trim();
+        const description = typographyDescription.trim();
+        const prompt = description
+          ? t('editTool.typography.promptLabel', { description, headline })
+          : t('editTool.typography.promptLabelNoDescription', { headline });
+        if (typographyStyle === 'vector') {
+          await createEditedImage(sourceUrl, {
+            model: 'fal-ai/recraft/v4/pro/text-to-vector',
+            params: { prompt },
+          });
+        } else {
+          await createEditedImage(sourceUrl, {
+            model: 'ideogram/v4',
+            params: { prompt, quality: typographyQuality },
+          });
+        }
       } else if (modelImageUrl) {
         await createEditedImage(
           sourceUrl,
@@ -155,11 +185,32 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
     sourceUrl,
     t,
     tryOnCategory,
+    typographyDescription,
+    typographyHeadline,
+    typographyQuality,
+    typographyStyle,
   ]);
 
   const categoryOptions = useMemo(
     () =>
       TRY_ON_CATEGORIES.map((c) => ({ label: t(`editTool.tryon.category.${c}` as any), value: c })),
+    [t],
+  );
+
+  const typographyStyleOptions = useMemo(
+    () => [
+      { label: t('editTool.typography.style.photo'), value: 'photo' as TypographyStyle },
+      { label: t('editTool.typography.style.vector'), value: 'vector' as TypographyStyle },
+    ],
+    [t],
+  );
+
+  const typographyQualityOptions = useMemo(
+    () =>
+      TYPOGRAPHY_QUALITIES.map((q) => ({
+        label: t(`editTool.typography.quality.${q}` as any),
+        value: q,
+      })),
     [t],
   );
 
@@ -169,6 +220,7 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
       { label: t('editTool.mode.place'), value: 'place' as Mode },
       { label: t('editTool.mode.relight'), value: 'relight' as Mode },
       { label: t('editTool.mode.tryon'), value: 'tryon' as Mode },
+      { label: t('editTool.mode.typography'), value: 'typography' as Mode },
     ],
     [t],
   );
@@ -293,6 +345,41 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
                   onChange={(v) => setTryOnCategory(v as TryOnCategory)}
                 />
                 <span style={{ fontSize: 12, opacity: 0.65 }}>{t('editTool.tryon.hint')}</span>
+              </Flexbox>
+            )}
+
+            {mode === 'typography' && (
+              <Flexbox gap={6}>
+                <span>{t('editTool.typography.styleField')}</span>
+                <Segmented
+                  block
+                  options={typographyStyleOptions}
+                  value={typographyStyle}
+                  onChange={(v) => setTypographyStyle(v as TypographyStyle)}
+                />
+                <span>{t('editTool.typography.field')}</span>
+                <Input
+                  placeholder={t('editTool.typography.placeholder')}
+                  value={typographyHeadline}
+                  onChange={(e) => setTypographyHeadline(e.target.value)}
+                />
+                <span>{t('editTool.typography.descriptionField')}</span>
+                <Input
+                  placeholder={t('editTool.typography.descriptionPlaceholder')}
+                  value={typographyDescription}
+                  onChange={(e) => setTypographyDescription(e.target.value)}
+                />
+                {typographyStyle === 'photo' && (
+                  <>
+                    <span>{t('editTool.typography.qualityField')}</span>
+                    <Select
+                      options={typographyQualityOptions}
+                      value={typographyQuality}
+                      onChange={(v) => setTypographyQuality(v as TypographyQuality)}
+                    />
+                  </>
+                )}
+                <span style={{ fontSize: 12, opacity: 0.65 }}>{t('editTool.typography.hint')}</span>
               </Flexbox>
             )}
 

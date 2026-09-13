@@ -12,11 +12,13 @@ import { useTranslation } from 'react-i18next';
 
 import { useActiveWorkspaceId } from '@/business/client/hooks/useActiveWorkspaceId';
 import useRenderBusinessVideoBatchItem from '@/business/client/hooks/useRenderBusinessVideoBatchItem';
+import { AdSpecValidatorAction } from '@/features/AdSpecValidator';
+import { ApprovalStatusTag } from '@/routes/(main)/(create)/features/GenerationFeed/ApprovalStatusTag';
 import { GenerationInvalidAPIKey } from '@/routes/(main)/(create)/features/GenerationInput';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useVideoStore } from '@/store/video';
 import { AsyncTaskErrorType, AsyncTaskStatus } from '@/types/asyncTask';
-import type { GenerationBatch } from '@/types/generation';
+import type { GenerationBatch, GenerationBatchApprovalStatus } from '@/types/generation';
 import { downloadFile } from '@/utils/client/downloadFile';
 
 import { isSyntheticPerformerBatch } from '../AdVoice/voice';
@@ -52,6 +54,7 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
   const useCheckGenerationStatus = useVideoStore((s) => s.useCheckGenerationStatus);
   const removeGeneration = useVideoStore((s) => s.removeGeneration);
   const removeGenerationBatch = useVideoStore((s) => s.removeGenerationBatch);
+  const setBatchApprovalStatus = useVideoStore((s) => s.setBatchApprovalStatus);
   const setModelAndProviderOnSelect = useVideoStore((s) => s.setModelAndProviderOnSelect);
   const setParamOnInput = useVideoStore((s) => s.setParamOnInput);
   const activeTopicId = useVideoStore((s) => s.activeGenerationTopicId);
@@ -130,6 +133,18 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
       console.error('Failed to delete batch:', error);
     }
   }, [activeTopicId, batch.id, removeGenerationBatch]);
+
+  const handleApprovalStatusChange = useCallback(
+    async (next: GenerationBatchApprovalStatus) => {
+      try {
+        await setBatchApprovalStatus(batch.id, next);
+      } catch (error) {
+        console.error('Failed to update approval status:', error);
+        toast.error(t('generation.approval.updateFailed', { ns: 'image' }));
+      }
+    },
+    [batch.id, setBatchApprovalStatus, t],
+  );
 
   const handleDownload = useCallback(async () => {
     if (!generation?.asset?.url) return;
@@ -274,6 +289,10 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
               {t('adVoice.avatar.badge')}
             </Tag>
           )}
+          <ApprovalStatusTag
+            status={batch.approvalStatus ?? 'pending'}
+            onChange={handleApprovalStatusChange}
+          />
         </Flexbox>
         <Flexbox horizontal align={'center'} gap={6}>
           {showCreator && (
@@ -292,6 +311,13 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
         </Flexbox>
       </Flexbox>
       <Flexbox horizontal align={'center'} className={styles.batchActions}>
+        {generation.asset && (generation.asset.width || generation.asset.height) && (
+          <AdSpecValidatorAction
+            duration={'duration' in generation.asset ? generation.asset.duration : undefined}
+            height={generation.asset.height}
+            width={generation.asset.width}
+          />
+        )}
         <ActionIconGroup
           items={[
             {

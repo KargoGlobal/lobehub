@@ -1,6 +1,7 @@
 export enum AsyncTaskType {
   Chunking = 'chunk',
   Embedding = 'embedding',
+  FinalCutExport = 'final_cut_export',
   ImageGeneration = 'image_generation',
   UserMemoryExtractionHourly = 'user_memory_extraction:hourly',
   UserMemoryExtractionWithChatTopic = 'user_memory_extraction:chat_topic',
@@ -195,4 +196,15 @@ export interface HourlyUserMemoryExtractionMetadata {
 export interface VideoGenerationTaskMetadata {
   precharge?: Record<string, unknown>;
   webhookToken?: string;
+}
+
+/**
+ * Metadata for a final-cut export task. Unlike image/video generation there is no
+ * `generations` row to carry the result — this is a file-producing job, not a "generation" —
+ * so the asyncTask's own metadata doubles as the result payload once `status` is `success`.
+ */
+export interface FinalCutExportTaskMetadata {
+  durationSeconds?: number;
+  fileId?: string;
+  url?: string;
 }

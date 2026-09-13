@@ -227,6 +227,39 @@ describe('LobeFalAI', () => {
       expect(input).not.toHaveProperty('aspectRatio');
     });
 
+    it('should resolve a bare `ideogram/` model id without the default `fal-ai/` prefix', async () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: { images: [{ url: 'https://example.com/image.jpg' }] },
+      };
+      mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+      await instance.createImage({
+        model: 'ideogram/v4',
+        params: { prompt: 'A poster with the text "SALE"' } as any,
+      });
+
+      const [endpoint] = mockFal.subscribe.mock.calls[0] as any;
+      expect(endpoint).toBe('ideogram/v4');
+    });
+
+    it('should map quality to rendering_speed (Ideogram V4 typography tiers)', async () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: { images: [{ url: 'https://example.com/image.jpg' }] },
+      };
+      mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+      await instance.createImage({
+        model: 'ideogram/v4',
+        params: { prompt: 'A poster with the text "SALE"', quality: 'QUALITY' } as any,
+      });
+
+      const [, { input }] = mockFal.subscribe.mock.calls[0] as any;
+      expect(input).toHaveProperty('rendering_speed', 'QUALITY');
+      expect(input).not.toHaveProperty('quality');
+    });
+
     it('should map imageUrls parameter to image_urls', async () => {
       // Arrange
       const mockImageResponse = {
@@ -1343,6 +1376,70 @@ describe('LobeFalAI', () => {
           params: { imageUrl: 'i', prompt: 'x' } as any,
         }),
       ).rejects.toThrow(/audioUrl/);
+      expect(mockFal.queue.submit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('video restyle endpoints (createVideo)', () => {
+    const submitted = () => (mockFal.queue.submit as any).mock.calls[0] as [string, { input: any }];
+
+    beforeEach(() => {
+      (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-restyle' });
+    });
+
+    it('maps Lucy Edit [Pro] to video_url/prompt without the fal-ai/ prefix', async () => {
+      const result = await instance.createVideo({
+        model: 'decart/lucy-edit/pro',
+        params: {
+          prompt: 'Swap the jacket for a red one',
+          videoUrl: 'https://cdn/clip.mp4',
+        } as any,
+      });
+
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('decart/lucy-edit/pro');
+      expect(input).toEqual({
+        prompt: 'Swap the jacket for a red one',
+        video_url: 'https://cdn/clip.mp4',
+      });
+      expect(result).toEqual({ inferenceId: 'decart/lucy-edit/pro::req-restyle' });
+    });
+
+    it('maps Kling O3 Edit to video_url/prompt and forwards keep_audio only when turned off', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+        params: {
+          keepAudio: false,
+          prompt: 'Restyle as claymation',
+          videoUrl: 'https://cdn/clip.mp4',
+        } as any,
+      });
+
+      const [endpoint, { input }] = submitted();
+      expect(endpoint).toBe('fal-ai/kling-video/o3/pro/video-to-video/edit');
+      expect(input).toEqual({
+        keep_audio: false,
+        prompt: 'Restyle as claymation',
+        video_url: 'https://cdn/clip.mp4',
+      });
+    });
+
+    it('omits keep_audio for Kling when left at the default', async () => {
+      await instance.createVideo({
+        model: 'fal-ai/kling-video/o3/pro/video-to-video/edit',
+        params: { prompt: 'Restyle', videoUrl: 'https://cdn/clip.mp4' } as any,
+      });
+      const [, { input }] = submitted();
+      expect('keep_audio' in input).toBe(false);
+    });
+
+    it('rejects a restyle request without a source clip', async () => {
+      await expect(
+        instance.createVideo({
+          model: 'decart/lucy-edit/pro',
+          params: { prompt: 'x' } as any,
+        }),
+      ).rejects.toThrow(/videoUrl/);
       expect(mockFal.queue.submit).not.toHaveBeenCalled();
     });
   });

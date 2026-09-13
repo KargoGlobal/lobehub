@@ -21,8 +21,11 @@ import { resolveMappedModelId } from '../../utils/modelIdMapping';
 const log = debug('lobe-image:fal');
 
 // fal hosts models under vendor namespaces (e.g. `openai/gpt-image-2`); only
-// bare model ids get the default `fal-ai/` prefix.
-const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/'];
+// bare model ids get the default `fal-ai/` prefix. `ideogram/` covers the V4 typography line,
+// which fal moved out of the legacy `fal-ai/ideogram/v2` / `fal-ai/ideogram/v3` namespace
+// (verified on the live fal OpenAPI schema 2026-09-12 — `fal-ai/ideogram/v4` 404s, `ideogram/v4`
+// is the real endpoint id).
+const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/', 'decart/', 'ideogram/'];
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
 
@@ -161,6 +164,41 @@ export const buildFalAvatarInput = (
   return input;
 };
 
+// Video-to-video restyle endpoints: fix one existing clip instead of
+// regenerating. Both return `{ video: { url } }` like every other fal video
+// model, so the existing queue/poll path handles them; only the input shape
+// differs (a source clip URL instead of a start frame).
+//   - `decart/lucy-edit/pro`: in-place restyle, `video_url` + `prompt` only
+//     (the live schema exposes a single `resolution` option, "720p").
+//   - `fal-ai/kling-video/o3/pro/video-to-video/edit`: prompt-driven edit,
+//     `video_url` + `prompt`, with an optional `keep_audio` toggle (defaults
+//     to true on fal's side, so only forwarded when the caller turns it off).
+const isFalLucyEditEndpoint = (endpoint: string) => endpoint.startsWith('decart/lucy-edit');
+const isFalKlingEditEndpoint = (endpoint: string) =>
+  endpoint.startsWith('fal-ai/kling-video/o3/pro/video-to-video/edit');
+export const isFalVideoRestyleEndpoint = (endpoint: string) =>
+  isFalLucyEditEndpoint(endpoint) || isFalKlingEditEndpoint(endpoint);
+
+export const buildFalVideoRestyleInput = (
+  endpoint: string,
+  params: Record<string, unknown>,
+): Record<string, unknown> => {
+  if (!nonEmptyString(params.videoUrl)) {
+    throw new Error('videoUrl is required for video restyle endpoints');
+  }
+
+  const input: Record<string, unknown> = {
+    prompt: typeof params.prompt === 'string' ? params.prompt : '',
+    video_url: params.videoUrl,
+  };
+
+  if (isFalKlingEditEndpoint(endpoint) && params.keepAudio === false) {
+    input.keep_audio = false;
+  }
+
+  return input;
+};
+
 // Audio endpoints (voiceover, music, sound effects). All synchronous via
 // `fal.subscribe`, all return `{ audio: { url } }`; only the request shape
 // differs per vendor. Verified against each endpoint's live OpenAPI schema.
@@ -264,6 +302,9 @@ export class LobeFalAI implements LobeRuntimeAI {
       // `aspectRatio` picker silently had no effect on the fal call (fal's
       // schema uses `aspect_ratio`, not the camelCase model-bank key).
       ['aspectRatio', 'aspect_ratio'],
+      // Ideogram V4's rendering-speed tier (TURBO/BALANCED/QUALITY) is the only
+      // fal model using the standard `quality` field today.
+      ['quality', 'rendering_speed'],
     ]);
 
     const defaultInput: Record<string, unknown> = {
@@ -369,6 +410,8 @@ export class LobeFalAI implements LobeRuntimeAI {
       ({ endpoint, input } = buildFalH3VideoInput(endpoint, params));
     } else if (isFalAvatarEndpoint(endpoint)) {
       input = buildFalAvatarInput(endpoint, params as Record<string, unknown>);
+    } else if (isFalVideoRestyleEndpoint(endpoint)) {
+      input = buildFalVideoRestyleInput(endpoint, params as Record<string, unknown>);
     } else {
       input = { prompt: params.prompt };
       if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
