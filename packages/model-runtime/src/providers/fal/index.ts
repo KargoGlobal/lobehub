@@ -21,8 +21,11 @@ import { resolveMappedModelId } from '../../utils/modelIdMapping';
 const log = debug('lobe-image:fal');
 
 // fal hosts models under vendor namespaces (e.g. `openai/gpt-image-2`); only
-// bare model ids get the default `fal-ai/` prefix.
-const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/', 'decart/'];
+// bare model ids get the default `fal-ai/` prefix. `ideogram/` covers the V4 typography line,
+// which fal moved out of the legacy `fal-ai/ideogram/v2` / `fal-ai/ideogram/v3` namespace
+// (verified on the live fal OpenAPI schema 2026-09-12 — `fal-ai/ideogram/v4` 404s, `ideogram/v4`
+// is the real endpoint id).
+const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/', 'decart/', 'ideogram/'];
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
 
@@ -299,6 +302,9 @@ export class LobeFalAI implements LobeRuntimeAI {
       // `aspectRatio` picker silently had no effect on the fal call (fal's
       // schema uses `aspect_ratio`, not the camelCase model-bank key).
       ['aspectRatio', 'aspect_ratio'],
+      // Ideogram V4's rendering-speed tier (TURBO/BALANCED/QUALITY) is the only
+      // fal model using the standard `quality` field today.
+      ['quality', 'rendering_speed'],
     ]);
 
     const defaultInput: Record<string, unknown> = {

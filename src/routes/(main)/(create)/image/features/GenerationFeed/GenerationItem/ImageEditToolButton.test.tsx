@@ -35,6 +35,7 @@ const DICT: Record<string, string> = {
   'editTool.mode.relight': 'Relight',
   'editTool.mode.resize': 'Resize',
   'editTool.mode.tryon': 'Try-on',
+  'editTool.mode.typography': 'Typography',
   'editTool.tryon.category.auto': 'Auto-detect',
   'editTool.tryon.category.bottoms': 'Bottoms',
   'editTool.tryon.category.one-pieces': 'One-piece',
@@ -47,7 +48,18 @@ const DICT: Record<string, string> = {
   'editTool.relight.presetGolden': 'warm golden-hour light from a low angle',
   'editTool.relight.presetGoldenLabel': 'Golden hour',
   'editTool.resize.label': 'Resize to {{ratio}}',
-  'editTool.title': 'Resize, place & relight',
+  'editTool.title': 'Resize, place, relight, try-on & typography',
+  'editTool.typography.placeholder': 'e.g. SUMMER SALE — 30% OFF',
+  'editTool.typography.promptLabel':
+    '{{description}}. Text to render clearly and accurately: "{{headline}}"',
+  'editTool.typography.promptLabelNoDescription':
+    'Text to render clearly and accurately: "{{headline}}"',
+  'editTool.typography.quality.BALANCED': 'Balanced',
+  'editTool.typography.quality.QUALITY': 'Best',
+  'editTool.typography.quality.TURBO': 'Fast',
+  'editTool.typography.style.photo': 'Photo-realistic',
+  'editTool.typography.style.vector': 'Vector & poster',
+  'editTool.typography.descriptionPlaceholder': 'e.g. summer sale banner, bold colors',
 };
 
 vi.mock('react-i18next', () => ({
@@ -166,6 +178,68 @@ describe('ImageEditToolButton', () => {
         output_format: 'png',
         prompt: 'Try on (auto)',
       },
+    });
+  });
+
+  it('blocks Apply in Typography mode until a headline is entered, then sends the Ideogram request', async () => {
+    render(<ImageEditToolButton sourceUrl={'https://cdn.example.com/a.png'} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Typography' }));
+    const apply = screen.getByRole('button', { name: 'Apply' });
+    expect(apply).toBeDisabled();
+
+    fireEvent.change(screen.getByPlaceholderText('e.g. SUMMER SALE — 30% OFF'), {
+      target: { value: 'SUMMER SALE' },
+    });
+    expect(apply).not.toBeDisabled();
+    fireEvent.click(apply);
+
+    await waitFor(() => expect(createEditedImage).toHaveBeenCalledTimes(1));
+    expect(createEditedImage).toHaveBeenCalledWith('https://cdn.example.com/a.png', {
+      model: 'ideogram/v4',
+      params: {
+        prompt: 'Text to render clearly and accurately: "SUMMER SALE"',
+        quality: 'BALANCED',
+      },
+    });
+  });
+
+  it('folds an optional scene description into the typography prompt', async () => {
+    render(<ImageEditToolButton sourceUrl={'https://cdn.example.com/a.png'} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Typography' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. SUMMER SALE — 30% OFF'), {
+      target: { value: 'SUMMER SALE' },
+    });
+    fireEvent.change(screen.getByPlaceholderText('e.g. summer sale banner, bold colors'), {
+      target: { value: 'a bold retail banner' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(createEditedImage).toHaveBeenCalledTimes(1));
+    expect(createEditedImage).toHaveBeenCalledWith('https://cdn.example.com/a.png', {
+      model: 'ideogram/v4',
+      params: {
+        prompt: 'a bold retail banner. Text to render clearly and accurately: "SUMMER SALE"',
+        quality: 'BALANCED',
+      },
+    });
+  });
+
+  it('switches to the Recraft vector model (without a quality param) in Vector style', async () => {
+    render(<ImageEditToolButton sourceUrl={'https://cdn.example.com/a.png'} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Typography' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Vector & poster' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. SUMMER SALE — 30% OFF'), {
+      target: { value: 'SUMMER SALE' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }));
+
+    await waitFor(() => expect(createEditedImage).toHaveBeenCalledTimes(1));
+    expect(createEditedImage).toHaveBeenCalledWith('https://cdn.example.com/a.png', {
+      model: 'fal-ai/recraft/v4/pro/text-to-vector',
+      params: { prompt: 'Text to render clearly and accurately: "SUMMER SALE"' },
     });
   });
 
