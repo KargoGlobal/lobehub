@@ -26,15 +26,15 @@ const TYPOGRAPHY_QUALITIES: TypographyQuality[] = ['TURBO', 'BALANCED', 'QUALITY
  * precision the endpoint can't deliver. Exact-pixel export is tracked separately.
  */
 const RESIZE_RATIOS = [
-  { label: 'editTool.resize.ratio.21:9', value: '21:9' },
-  { label: 'editTool.resize.ratio.16:9', value: '16:9' },
-  { label: 'editTool.resize.ratio.4:3', value: '4:3' },
-  { label: 'editTool.resize.ratio.3:2', value: '3:2' },
-  { label: 'editTool.resize.ratio.1:1', value: '1:1' },
-  { label: 'editTool.resize.ratio.2:3', value: '2:3' },
-  { label: 'editTool.resize.ratio.3:4', value: '3:4' },
-  { label: 'editTool.resize.ratio.9:16', value: '9:16' },
-  { label: 'editTool.resize.ratio.9:21', value: '9:21' },
+  { label: 'editTool.resize.ratio.21x9', value: '21:9' },
+  { label: 'editTool.resize.ratio.16x9', value: '16:9' },
+  { label: 'editTool.resize.ratio.4x3', value: '4:3' },
+  { label: 'editTool.resize.ratio.3x2', value: '3:2' },
+  { label: 'editTool.resize.ratio.1x1', value: '1:1' },
+  { label: 'editTool.resize.ratio.2x3', value: '2:3' },
+  { label: 'editTool.resize.ratio.3x4', value: '3:4' },
+  { label: 'editTool.resize.ratio.9x16', value: '9:16' },
+  { label: 'editTool.resize.ratio.9x21', value: '9:21' },
 ] as const;
 
 const PLACE_PRESETS = ['presetStudio', 'presetOutdoor', 'presetMarble', 'presetWood'] as const;
@@ -233,7 +233,7 @@ const ImageEditToolButton = memo<ImageEditToolButtonProps>(({ sourceUrl, onAppli
       trigger={'click'}
       popover={{
         content: (
-          <Flexbox gap={12} style={{ width: 280 }}>
+          <Flexbox gap={12} style={{ width: 360 }}>
             <Segmented
               block
               options={modeOptions}
