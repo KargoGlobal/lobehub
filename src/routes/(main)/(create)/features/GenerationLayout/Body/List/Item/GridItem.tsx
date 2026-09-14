@@ -37,6 +37,30 @@ const styles = createStaticStyles(({ css, cssVar }) => ({
     border: 2px solid ${cssVar.colorBgLayout} !important;
     box-shadow: 0 0 0 2px ${cssVar.colorPrimary};
   `,
+  /* A topic with nothing rendered yet (still generating, or failed) has no
+   * cover. Showing its title beats a one-letter initial: a stuck or failed
+   * topic is exactly the one a user goes looking for, and it must be findable. */
+  textTile: css`
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    padding: 8px;
+
+    font-size: 11px;
+    line-height: 1.3;
+    color: ${cssVar.colorTextSecondary};
+    text-align: center;
+    overflow-wrap: anywhere;
+
+    span {
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 4;
+    }
+  `,
 }));
 
 interface TopicItemProps {
@@ -74,14 +98,26 @@ const GridItem = memo<TopicItemProps>(
     return (
       <Tooltip title={tooltipTitle}>
         <ContextMenuTrigger items={contextMenuItems}>
-          <Avatar
-            alt={title}
-            avatar={topic.coverUrl ?? title}
-            className={cx(styles.gridItem, isActive && styles.gridItemActive)}
-            loading={isLoading || isUpdating}
-            style={style}
-            onClick={onClick}
-          />
+          {topic.coverUrl ? (
+            <Avatar
+              alt={title}
+              avatar={topic.coverUrl}
+              className={cx(styles.gridItem, isActive && styles.gridItemActive)}
+              loading={isLoading || isUpdating}
+              style={style}
+              onClick={onClick}
+            />
+          ) : (
+            <div
+              className={cx(styles.gridItem, styles.textTile, isActive && styles.gridItemActive)}
+              data-testid={'topic-text-tile'}
+              role={'button'}
+              style={style}
+              onClick={onClick}
+            >
+              <span>{title}</span>
+            </div>
+          )}
         </ContextMenuTrigger>
       </Tooltip>
     );

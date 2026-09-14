@@ -63,7 +63,8 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
     const runtime = ModelRuntime.initializeWithProvider(provider, {
       apiKey: 'webhook-placeholder',
     });
-    const result = await runtime.handleCreateVideoWebhook({ body });
+    const query = Object.fromEntries(new URL(c.req.url).searchParams);
+    const result = await runtime.handleCreateVideoWebhook({ body, query });
 
     if (!result) {
       return c.json({ error: `Provider ${provider} does not support video webhook` }, 400);

@@ -8,8 +8,9 @@ import { GenerationModel } from '@/database/models/generation';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { FileService } from '@/server/services/file';
+import { rescueStuckVideoTask } from '@/server/services/generation/videoBackgroundPolling';
 import { type AsyncTaskError } from '@/types/asyncTask';
-import { AsyncTaskStatus } from '@/types/asyncTask';
+import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 import { type Generation } from '@/types/generation';
 
 import { assertWorkspaceRowManageable } from './_helpers/assertWorkspaceRowManageable';
@@ -65,6 +66,35 @@ export const generationRouter = router({
   getGenerationStatus: generationProcedure
     .input(z.object({ asyncTaskId: z.string(), generationId: z.string() }))
     .query(async ({ ctx, input }) => {
+      // A video task still `processing` with a provider job id may have simply
+      // outlived the background poller (see rescueStuckVideoTask). Ask the
+      // provider before the timeout sweep gets a chance to write it off.
+      const pending = await ctx.asyncTaskModel.findById(input.asyncTaskId);
+      if (
+        pending?.type === AsyncTaskType.VideoGeneration &&
+        pending.status === AsyncTaskStatus.Processing &&
+        pending.inferenceId
+      ) {
+        const generation = await ctx.generationModel.findById(input.generationId);
+        const batch = generation?.generationBatchId
+          ? await ctx.serverDB.query.generationBatches.findFirst({
+              where: (batches, { eq }) => eq(batches.id, generation.generationBatchId!),
+            })
+          : undefined;
+        if (batch) {
+          await rescueStuckVideoTask(ctx.serverDB, {
+            asyncTaskCreatedAt: pending.createdAt,
+            asyncTaskId: pending.id,
+            generationBatchId: batch.id,
+            generationId: input.generationId,
+            inferenceId: pending.inferenceId,
+            provider: batch.provider,
+            userId: ctx.userId,
+            workspaceId: ctx.workspaceId ?? undefined,
+          });
+        }
+      }
+
       // Check for timeout tasks before querying
       await ctx.asyncTaskModel.checkTimeoutTasks([input.asyncTaskId]);
 
