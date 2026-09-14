@@ -29,6 +29,117 @@ interface BackgroundPollingParams {
   workspaceId?: string;
 }
 
+export interface CompleteVideoGenerationParams {
+  asyncTaskCreatedAt: Date;
+  asyncTaskId: string;
+  generationBatchId: string;
+  generationId: string;
+  userId: string;
+  workspaceId?: string;
+}
+
+/**
+ * Download → post-process → upload → persist asset → mark the task done.
+ * Shared by the background poller and by `rescueStuckVideoTask`, so a clip
+ * that finished on the provider's side is recorded the same way regardless of
+ * which path noticed it first.
+ */
+export async function completeVideoGeneration(
+  db: LobeChatDatabase,
+  params: CompleteVideoGenerationParams,
+  result: { headers?: Record<string, string>; videoUrl: string },
+): Promise<void> {
+  const { asyncTaskCreatedAt, asyncTaskId, generationBatchId, generationId, userId, workspaceId } =
+    params;
+  const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
+  const videoService = new VideoGenerationService(db, userId, workspaceId);
+  const generationModel = new GenerationModel(db, userId, workspaceId);
+
+  const processResult = await videoService.processVideoForGeneration(result.videoUrl, {
+    headers: result.headers,
+  });
+
+  const asset: VideoGenerationAsset = {
+    coverUrl: processResult.coverKey,
+    duration: processResult.duration,
+    height: processResult.height,
+    originalUrl: result.videoUrl,
+    thumbnailUrl: processResult.thumbnailKey,
+    type: 'video',
+    url: processResult.videoKey,
+    width: processResult.width,
+  };
+
+  const batch = await db.query.generationBatches.findFirst({
+    where: (batches, { eq }) => eq(batches.id, generationBatchId),
+  });
+
+  await generationModel.createAssetAndFile(
+    generationId,
+    asset,
+    buildVideoGenerationFilePayload({
+      generationId,
+      processResult,
+      prompt: batch?.prompt,
+    }),
+    FileSource.VideoGeneration,
+  );
+
+  await asyncTaskModel.update(asyncTaskId, {
+    duration: Date.now() - asyncTaskCreatedAt.getTime(),
+    status: AsyncTaskStatus.Success,
+  });
+}
+
+export interface RescueStuckVideoTaskParams extends CompleteVideoGenerationParams {
+  inferenceId: string;
+  provider: string;
+}
+
+/**
+ * One-shot check of a task that is still `processing` on our side. The
+ * background poller runs in the request's post-response hook and dies with
+ * the serverless function, so a render that outlives it (Veo commonly takes
+ * several minutes) was never recorded — the UI spun forever and the clip was
+ * paid for but lost. Whoever next asks for the task's status triggers this:
+ * ask the provider once; if the clip is done, finish it; if the provider says
+ * it failed, mark it failed; otherwise leave it alone.
+ *
+ * Returns true when the task was moved to a terminal state.
+ */
+export async function rescueStuckVideoTask(
+  db: LobeChatDatabase,
+  params: RescueStuckVideoTaskParams,
+): Promise<boolean> {
+  const { inferenceId, provider, userId, workspaceId, asyncTaskId } = params;
+  try {
+    const modelRuntime = await initModelRuntimeFromDB(db, userId, provider, workspaceId);
+    const pollResult = await modelRuntime.handlePollVideoStatus(inferenceId);
+    if (!pollResult || pollResult.status === 'pending') return false;
+
+    if (pollResult.status === 'failed') {
+      const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
+      await asyncTaskModel.update(asyncTaskId, {
+        error: new AsyncTaskError(AsyncTaskErrorType.ServerError, pollResult.error),
+        status: AsyncTaskStatus.Error,
+      });
+      return true;
+    }
+
+    log('Rescuing stuck video task %s: provider reports it finished', asyncTaskId);
+    await completeVideoGeneration(db, params, {
+      // Some providers (fal) attach download headers; the shared interface omits them.
+      headers: (pollResult as { headers?: Record<string, string> }).headers,
+      videoUrl: pollResult.videoUrl,
+    });
+    return true;
+  } catch (error) {
+    // A rescue is best-effort; never let it break the status request.
+    log('Rescue attempt for task %s failed: %O', asyncTaskId, error);
+    return false;
+  }
+}
+
 export async function processBackgroundVideoPolling(
   db: LobeChatDatabase,
   params: BackgroundPollingParams,
@@ -53,10 +164,6 @@ export async function processBackgroundVideoPolling(
   );
 
   try {
-    const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
-    const videoService = new VideoGenerationService(db, userId, workspaceId);
-    const generationModel = new GenerationModel(db, userId, workspaceId);
-
     const modelRuntime = await initModelRuntimeFromDB(db, userId, provider, workspaceId);
     const pollResult = await pollUntilCompletion(modelRuntime, inferenceId);
 
@@ -66,42 +173,11 @@ export async function processBackgroundVideoPolling(
 
     log('Video polling succeeded for task: %s, processing video...', asyncTaskId);
 
-    const processResult = await videoService.processVideoForGeneration(pollResult.videoUrl, {
-      headers: pollResult.headers,
-    });
-
-    const asset: VideoGenerationAsset = {
-      coverUrl: processResult.coverKey,
-      duration: processResult.duration,
-      height: processResult.height,
-      originalUrl: pollResult.videoUrl,
-      thumbnailUrl: processResult.thumbnailKey,
-      type: 'video',
-      url: processResult.videoKey,
-      width: processResult.width,
-    };
-
-    const batch = await db.query.generationBatches.findFirst({
-      where: (batches, { eq }) => eq(batches.id, generationBatchId),
-    });
-
-    await generationModel.createAssetAndFile(
-      generationId,
-      asset,
-      buildVideoGenerationFilePayload({
-        generationId,
-        processResult,
-        prompt: batch?.prompt,
-      }),
-      FileSource.VideoGeneration,
+    await completeVideoGeneration(
+      db,
+      { asyncTaskCreatedAt, asyncTaskId, generationBatchId, generationId, userId, workspaceId },
+      pollResult,
     );
-
-    const duration = Date.now() - asyncTaskCreatedAt.getTime();
-
-    await asyncTaskModel.update(asyncTaskId, {
-      duration,
-      status: AsyncTaskStatus.Success,
-    });
 
     log('Video processing completed successfully for task: %s', asyncTaskId);
   } catch (error) {

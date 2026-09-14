@@ -11,6 +11,8 @@ import type { TextToSpeechPayload } from '../../types/tts';
 import type {
   CreateVideoPayload,
   CreateVideoResponse,
+  HandleCreateVideoWebhookPayload,
+  HandleCreateVideoWebhookResult,
   PollVideoStatusResult,
 } from '../../types/video';
 import { AgentRuntimeError } from '../../utils/createError';
@@ -268,6 +270,17 @@ export const buildFalAudioInput = (
 // but fal's queue API needs both the endpoint and the request id to poll.
 const FAL_INFERENCE_ID_SEPARATOR = '::';
 
+// fal's webhook payload carries only the request id, not the endpoint, so the
+// endpoint rides on the callback URL as a query param and is read back from
+// `query` in `handleCreateVideoWebhook`.
+const FAL_WEBHOOK_ENDPOINT_PARAM = 'endpoint';
+
+const withFalWebhookEndpoint = (callbackUrl: string, endpoint: string) => {
+  const url = new URL(callbackUrl);
+  url.searchParams.set(FAL_WEBHOOK_ENDPOINT_PARAM, endpoint);
+  return url.toString();
+};
+
 type FluxDevOutput = Awaited<ReturnType<typeof fal.subscribe<'fal-ai/flux/dev'>>>['data'];
 
 export class LobeFalAI implements LobeRuntimeAI {
@@ -423,9 +436,22 @@ export class LobeFalAI implements LobeRuntimeAI {
 
     log('Submitting fal video task on endpoint: %s with input: %O', endpoint, input);
     try {
-      const { request_id } = await fal.queue.submit(endpoint, { input });
+      // Prefer fal's webhook when the caller can receive one: video renders
+      // (Veo especially) routinely outlive the serverless function whose
+      // post-response hook would otherwise have to keep polling, and a task
+      // whose poller died was never marked done. fal retries webhook delivery
+      // for up to two hours, so completion no longer depends on our process
+      // staying alive. Without a callback URL, fall back to polling.
+      const webhookUrl = payload.callbackUrl
+        ? withFalWebhookEndpoint(payload.callbackUrl, endpoint)
+        : undefined;
+      const { request_id } = await fal.queue.submit(endpoint, {
+        input,
+        ...(webhookUrl ? { webhookUrl } : {}),
+      });
 
-      return { inferenceId: `${endpoint}${FAL_INFERENCE_ID_SEPARATOR}${request_id}` };
+      const inferenceId = `${endpoint}${FAL_INFERENCE_ID_SEPARATOR}${request_id}`;
+      return webhookUrl ? { inferenceId, useWebhook: true } : { inferenceId };
     } catch (error) {
       if (error instanceof Error && 'status' in error && error.status === 401) {
         throw AgentRuntimeError.createError(AgentRuntimeErrorType.InvalidProviderAPIKey, {
@@ -473,6 +499,54 @@ export class LobeFalAI implements LobeRuntimeAI {
       });
     }
     return response.arrayBuffer();
+  }
+
+  /**
+   * Parses fal's queue webhook (https://docs.fal.ai/model-apis/model-endpoints/webhooks):
+   * `{ request_id, gateway_request_id, status: 'OK' | 'ERROR', payload, error?, payload_error? }`.
+   * The generic handler has already matched the callback's per-task secret token
+   * before acting on the result, which is what guards against forged callbacks.
+   */
+  async handleCreateVideoWebhook(
+    payload: HandleCreateVideoWebhookPayload,
+  ): Promise<HandleCreateVideoWebhookResult> {
+    const body = (payload.body ?? {}) as {
+      error?: string;
+      payload?: { detail?: unknown; video?: { url?: string } } | null;
+      payload_error?: string;
+      request_id?: string;
+      status?: string;
+    };
+    const endpoint = payload.query?.[FAL_WEBHOOK_ENDPOINT_PARAM];
+    const requestId = body.request_id;
+
+    if (!endpoint || !requestId) {
+      return { status: 'pending' };
+    }
+    const inferenceId = `${endpoint}${FAL_INFERENCE_ID_SEPARATOR}${requestId}`;
+
+    if (body.status === 'ERROR') {
+      const detail = body.payload?.detail;
+      const message =
+        body.error ??
+        body.payload_error ??
+        (typeof detail === 'string' ? detail : JSON.stringify(detail ?? 'unknown error'));
+      return { error: message, inferenceId, status: 'error' };
+    }
+
+    if (body.status === 'OK') {
+      const videoUrl = body.payload?.video?.url;
+      if (!videoUrl) {
+        return {
+          error: body.payload_error ?? 'fal webhook succeeded without a video url',
+          inferenceId,
+          status: 'error',
+        };
+      }
+      return { inferenceId, status: 'success', videoUrl };
+    }
+
+    return { status: 'pending' };
   }
 
   async handlePollVideoStatus(inferenceId: string): Promise<PollVideoStatusResult> {

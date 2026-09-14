@@ -4,13 +4,23 @@ import { describe, expect, it, vi } from 'vitest';
 import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import { FileService } from '@/server/services/file';
-import { AsyncTaskStatus } from '@/types/asyncTask';
+import { rescueStuckVideoTask } from '@/server/services/generation/videoBackgroundPolling';
+import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 
 import { generationRouter } from '../generation';
 
 vi.mock('@/database/models/asyncTask');
 vi.mock('@/database/models/generation');
 vi.mock('@/server/services/file');
+vi.mock('@/server/services/generation/videoBackgroundPolling', () => ({
+  rescueStuckVideoTask: vi.fn().mockResolvedValue(false),
+}));
+const { mockServerDB } = vi.hoisted(() => ({
+  mockServerDB: { query: { generationBatches: { findFirst: vi.fn() } } },
+}));
+vi.mock('@/database/core/db-adaptor', () => ({
+  getServerDB: vi.fn().mockResolvedValue(mockServerDB),
+}));
 
 describe('generationRouter', () => {
   const mockCtx = {
@@ -18,6 +28,62 @@ describe('generationRouter', () => {
   };
 
   describe('getGenerationStatus', () => {
+    it('asks the provider about a video task still processing before the timeout sweep', async () => {
+      const stuckTask = {
+        createdAt: new Date('2026-09-14T01:19:47Z'),
+        id: 'task-1',
+        inferenceId: 'fal-ai/veo3.1::req-1',
+        status: AsyncTaskStatus.Processing,
+        type: AsyncTaskType.VideoGeneration,
+      };
+      const rescuedTask = { ...stuckTask, status: AsyncTaskStatus.Success };
+      const mockFindById = vi
+        .fn()
+        .mockResolvedValueOnce(stuckTask) // pre-rescue peek
+        .mockResolvedValueOnce(rescuedTask); // after rescue
+      const mockCheckTimeoutTasks = vi.fn().mockResolvedValue(undefined);
+      const mockGeneration = { id: 'gen-1', asset: { url: 'https://example.com/v.mp4' } };
+
+      vi.mocked(AsyncTaskModel).mockImplementation(
+        () => ({ checkTimeoutTasks: mockCheckTimeoutTasks, findById: mockFindById }) as any,
+      );
+      vi.mocked(GenerationModel).mockImplementation(
+        () =>
+          ({
+            findById: vi.fn().mockResolvedValue({ generationBatchId: 'batch-1', id: 'gen-1' }),
+            findByIdAndTransform: vi.fn().mockResolvedValue(mockGeneration),
+          }) as any,
+      );
+      vi.mocked(rescueStuckVideoTask).mockResolvedValueOnce(true);
+
+      mockServerDB.query.generationBatches.findFirst.mockResolvedValue({
+        id: 'batch-1',
+        provider: 'fal',
+      });
+      const caller = generationRouter.createCaller(mockCtx);
+      const result = await caller.getGenerationStatus({
+        asyncTaskId: 'task-1',
+        generationId: 'gen-1',
+      });
+
+      expect(rescueStuckVideoTask).toHaveBeenCalledWith(
+        mockServerDB,
+        expect.objectContaining({
+          asyncTaskId: 'task-1',
+          generationBatchId: 'batch-1',
+          generationId: 'gen-1',
+          inferenceId: 'fal-ai/veo3.1::req-1',
+          provider: 'fal',
+        }),
+      );
+      // Rescue runs first, so the timeout sweep cannot write the task off as failed.
+      expect(vi.mocked(rescueStuckVideoTask).mock.invocationCallOrder[0]).toBeLessThan(
+        mockCheckTimeoutTasks.mock.invocationCallOrder[0],
+      );
+      expect(result.status).toBe(AsyncTaskStatus.Success);
+      expect(result.generation).toEqual(mockGeneration);
+    });
+
     it('should return generation status when task is successful', async () => {
       const mockGeneration = {
         id: 'gen-1',

@@ -49,6 +49,8 @@ export type PollVideoStatusResult =
 export type HandleCreateVideoWebhookPayload = {
   body: unknown;
   headers?: Record<string, string>;
+  /** Query string of the callback URL the provider hit (providers may encode routing info there). */
+  query?: Record<string, string>;
 };
 
 export type HandleCreateVideoWebhookResult =

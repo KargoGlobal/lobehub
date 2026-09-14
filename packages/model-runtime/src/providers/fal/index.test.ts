@@ -1536,4 +1536,85 @@ describe('LobeFalAI', () => {
       expect(mockFal.subscribe).not.toHaveBeenCalled();
     });
   });
+
+  describe('createVideo — webhook completion', () => {
+    beforeEach(() => {
+      (mockFal.queue.submit as any).mockResolvedValue({ request_id: 'req-w' });
+    });
+
+    it("registers fal's webhook (with the endpoint in the URL) when a callback URL is given", async () => {
+      const result = await instance.createVideo({
+        callbackUrl: 'https://app.example.com/api/webhooks/video/fal?token=abc',
+        model: 'fal-ai/veo3.1',
+        params: { prompt: 'a man running through the jungle' },
+      });
+
+      const [endpoint, opts] = (mockFal.queue.submit as any).mock.calls[0];
+      expect(endpoint).toBe('fal-ai/veo3.1');
+      expect(opts.webhookUrl).toBe(
+        'https://app.example.com/api/webhooks/video/fal?token=abc&endpoint=fal-ai%2Fveo3.1',
+      );
+      expect(result).toEqual({ inferenceId: 'fal-ai/veo3.1::req-w', useWebhook: true });
+    });
+
+    it('falls back to polling (no webhook flag) without a callback URL', async () => {
+      const result = await instance.createVideo({
+        model: 'fal-ai/veo3.1',
+        params: { prompt: 'x' },
+      });
+      const [, opts] = (mockFal.queue.submit as any).mock.calls[0];
+      expect(opts.webhookUrl).toBeUndefined();
+      expect(result).toEqual({ inferenceId: 'fal-ai/veo3.1::req-w' });
+    });
+  });
+
+  describe('handleCreateVideoWebhook', () => {
+    const query = { endpoint: 'fal-ai/veo3.1', token: 'abc' };
+
+    it('maps a successful fal callback to the stored inference id and video url', async () => {
+      const result = await instance.handleCreateVideoWebhook({
+        body: {
+          gateway_request_id: 'req-w',
+          payload: { video: { url: 'https://fal.media/out.mp4' } },
+          request_id: 'req-w',
+          status: 'OK',
+        },
+        query,
+      });
+      expect(result).toEqual({
+        inferenceId: 'fal-ai/veo3.1::req-w',
+        status: 'success',
+        videoUrl: 'https://fal.media/out.mp4',
+      });
+    });
+
+    it('maps a failed fal callback to an error with the provider message', async () => {
+      const result = await instance.handleCreateVideoWebhook({
+        body: { error: 'Invalid status code: 422', request_id: 'req-w', status: 'ERROR' },
+        query,
+      });
+      expect(result).toEqual({
+        error: 'Invalid status code: 422',
+        inferenceId: 'fal-ai/veo3.1::req-w',
+        status: 'error',
+      });
+    });
+
+    it('treats an OK callback with no video as an error, not a silent success', async () => {
+      const result = await instance.handleCreateVideoWebhook({
+        body: { payload: {}, request_id: 'req-w', status: 'OK' },
+        query,
+      });
+      expect(result).toMatchObject({ inferenceId: 'fal-ai/veo3.1::req-w', status: 'error' });
+    });
+
+    it('ignores callbacks it cannot route (no endpoint or request id)', async () => {
+      expect(
+        await instance.handleCreateVideoWebhook({ body: { status: 'OK', request_id: 'r' } }),
+      ).toEqual({ status: 'pending' });
+      expect(await instance.handleCreateVideoWebhook({ body: {}, query })).toEqual({
+        status: 'pending',
+      });
+    });
+  });
 });

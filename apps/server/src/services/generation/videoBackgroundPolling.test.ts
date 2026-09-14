@@ -5,7 +5,10 @@ import { GenerationModel } from '@/database/models/generation';
 import type { LobeChatDatabase } from '@/database/type';
 import { initModelRuntimeFromDB } from '@/server/modules/ModelRuntime';
 import { VideoGenerationService } from '@/server/services/generation/video';
-import { processBackgroundVideoPolling } from '@/server/services/generation/videoBackgroundPolling';
+import {
+  processBackgroundVideoPolling,
+  rescueStuckVideoTask,
+} from '@/server/services/generation/videoBackgroundPolling';
 import { AsyncTaskError, AsyncTaskStatus } from '@/types/asyncTask';
 import { FileSource } from '@/types/files';
 
@@ -326,6 +329,66 @@ describe('videoBackgroundPolling', () => {
           status: AsyncTaskStatus.Success,
         }),
       );
+    });
+  });
+
+  describe('rescueStuckVideoTask', () => {
+    const processResult = {
+      coverKey: 'cover.webp',
+      duration: 8,
+      height: 1080,
+      thumbnailKey: 'thumb.webp',
+      videoKey: 'v.mp4',
+      width: 1920,
+    };
+
+    it('finishes a task the provider reports as done, using a single status check', async () => {
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
+        status: 'success',
+        videoUrl: 'https://fal.media/done.mp4',
+      });
+      mockVideoService.processVideoForGeneration.mockResolvedValue(processResult);
+
+      const rescued = await rescueStuckVideoTask(mockDb, mockParams);
+
+      expect(rescued).toBe(true);
+      expect(mockModelRuntime.handlePollVideoStatus).toHaveBeenCalledTimes(1);
+      expect(mockGenerationModel.createAssetAndFile).toHaveBeenCalledWith(
+        'gen-456',
+        expect.objectContaining({ type: 'video', url: 'v.mp4' }),
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+        'task-123',
+        expect.objectContaining({ status: AsyncTaskStatus.Success }),
+      );
+    });
+
+    it('leaves a task alone while the provider still reports it pending', async () => {
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({ status: 'pending' });
+
+      expect(await rescueStuckVideoTask(mockDb, mockParams)).toBe(false);
+      expect(mockAsyncTaskModel.update).not.toHaveBeenCalled();
+      expect(mockGenerationModel.createAssetAndFile).not.toHaveBeenCalled();
+    });
+
+    it('marks the task failed when the provider reports failure', async () => {
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
+        error: 'content policy',
+        status: 'failed',
+      });
+
+      expect(await rescueStuckVideoTask(mockDb, mockParams)).toBe(true);
+      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+        'task-123',
+        expect.objectContaining({ status: AsyncTaskStatus.Error }),
+      );
+    });
+
+    it('never throws into the caller when the check itself blows up', async () => {
+      vi.mocked(initModelRuntimeFromDB).mockRejectedValue(new Error('no provider key'));
+      expect(await rescueStuckVideoTask(mockDb, mockParams)).toBe(false);
     });
   });
 });
