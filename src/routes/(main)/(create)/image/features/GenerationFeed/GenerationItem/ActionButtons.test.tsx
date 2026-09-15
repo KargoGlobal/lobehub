@@ -39,25 +39,29 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('ActionButtons', () => {
-  it('calls onRemoveBackground and onUpscale when their buttons are clicked', async () => {
+  it('calls onRemoveBackground, onUpscale and onSendToVideo when their buttons are clicked', async () => {
     const onDelete = vi.fn();
     const onRemoveBackground = vi.fn();
     const onUpscale = vi.fn();
+    const onSendToVideo = vi.fn();
     const user = userEvent.setup();
 
     render(
       <ActionButtons
         onDelete={onDelete}
         onRemoveBackground={onRemoveBackground}
+        onSendToVideo={onSendToVideo}
         onUpscale={onUpscale}
       />,
     );
 
     await user.click(screen.getByRole('button', { name: 'removeBackground' }));
     await user.click(screen.getByRole('button', { name: 'upscale' }));
+    await user.click(screen.getByRole('button', { name: 'sendToVideo' }));
 
     expect(onRemoveBackground).toHaveBeenCalledTimes(1);
     expect(onUpscale).toHaveBeenCalledTimes(1);
+    expect(onSendToVideo).toHaveBeenCalledTimes(1);
     expect(onDelete).not.toHaveBeenCalled();
   });
 
@@ -66,6 +70,7 @@ describe('ActionButtons', () => {
 
     expect(screen.queryByRole('button', { name: 'removeBackground' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'upscale' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'sendToVideo' })).toBeNull();
     expect(screen.getByRole('button', { name: 'delete' })).toBeTruthy();
   });
 });

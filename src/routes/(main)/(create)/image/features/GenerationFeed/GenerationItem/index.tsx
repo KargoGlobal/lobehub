@@ -4,6 +4,7 @@ import { toast } from '@lobehub/ui/base-ui';
 import dayjs from 'dayjs';
 import { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
 
 import { useDownloadImage } from '@/hooks/useDownloadImage';
 import { useImageStore } from '@/store/image';
@@ -19,9 +20,14 @@ import { getAspectRatio } from './utils';
 
 const isSupportedParamSelector = imageGenerationConfigSelectors.isSupportedParam;
 
+// MiniMax H3 Max is the fal video model that accepts a starting-frame image
+// (`imageUrl`); Veo 3.1, the default video model, has no image param at all.
+const IMAGE_TO_VIDEO_MODEL = 'minimax/h3-max';
+
 export const GenerationItem = memo<GenerationItemProps>(
   ({ generationBatch, generation, prompt }) => {
     const { t } = useTranslation('image');
+    const navigate = useNavigate();
     const useCheckGenerationStatus = useImageStore((s) => s.useCheckGenerationStatus);
     const deleteGeneration = useImageStore((s) => s.removeGeneration);
     const createUtilityImage = useImageStore((s) => s.createUtilityImage);
@@ -83,6 +89,15 @@ export const GenerationItem = memo<GenerationItemProps>(
       }
     }, [createUtilityImage, generation.asset?.url, t]);
 
+    const handleSendToVideo = useCallback(() => {
+      if (!generation.asset?.url) return;
+      const params = new URLSearchParams({
+        imageUrl: generation.asset.url,
+        model: IMAGE_TO_VIDEO_MODEL,
+      });
+      navigate(`/video?${params.toString()}`);
+    }, [navigate, generation.asset?.url]);
+
     const handleCopySeed = useCallback(async () => {
       if (!generation.seed) return;
 
@@ -141,6 +156,7 @@ export const GenerationItem = memo<GenerationItemProps>(
           onDelete={handleDeleteGeneration}
           onDownload={handleDownloadImage}
           onRemoveBackground={handleRemoveBackground}
+          onSendToVideo={handleSendToVideo}
           onUpscale={handleUpscale}
         />
       );

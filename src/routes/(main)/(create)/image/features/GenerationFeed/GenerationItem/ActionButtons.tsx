@@ -3,7 +3,7 @@
 import { type ActionIconGroupProps, Flexbox } from '@lobehub/ui';
 import { ActionIconGroup } from '@lobehub/ui';
 import { type ActionIconProps } from '@lobehub/ui/base-ui';
-import { Dices, Download, Eraser, Sparkles, Trash2 } from 'lucide-react';
+import { Dices, Download, Eraser, Sparkles, Trash2, Video } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -24,6 +24,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
     onDownload,
     onCopySeed,
     onRemoveBackground,
+    onSendToVideo,
     onUpscale,
     showDownload = false,
     showCopySeed = false,
@@ -64,6 +65,12 @@ export const ActionButtons = memo<ActionButtonsProps>(
                   label: t('generation.actions.upscale'),
                   onClick: onUpscale,
                 },
+                Boolean(onSendToVideo) && {
+                  icon: Video,
+                  key: 'sendToVideo',
+                  label: t('generation.actions.sendToVideo'),
+                  onClick: onSendToVideo,
+                },
                 Boolean(showCopySeed && onCopySeed) && {
                   icon: Dices,
                   key: 'copySeed',
@@ -82,6 +89,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
               showDownload,
               onDownload,
               onRemoveBackground,
+              onSendToVideo,
               onUpscale,
               showCopySeed,
               onCopySeed,

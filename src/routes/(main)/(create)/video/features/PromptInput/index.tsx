@@ -354,8 +354,10 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   // Read query parameters
   const [promptParam, setPromptParam] = useQueryState('prompt');
   const [modelParam, setModelParam] = useQueryState('model');
+  const [imageUrlParam, setImageUrlParam] = useQueryState('imageUrl');
   const hasProcessedPrompt = useRef(false);
   const hasProcessedModel = useRef(false);
+  const hasProcessedImageUrl = useRef(false);
 
   const handleGenerate = async () => {
     if (!canCreate) return;
@@ -384,6 +386,21 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
       setModelParam(null);
     }
   }, [modelParam, isInit, enabledVideoModelList, setModelAndProviderOnSelect, setModelParam]);
+
+  // Prefill a starting-frame image from a deep link (e.g. "Send to Video" on a
+  // generated image). Waits for `?model=` to settle first so an accompanying
+  // model switch lands before the image is set — otherwise the image would be
+  // written to whatever model was active before the switch applied. Never
+  // auto-generates: video runs cost real money, so the user reviews and hits
+  // Generate themselves.
+  useEffect(() => {
+    if (!imageUrlParam || hasProcessedImageUrl.current) return;
+    if (modelParam || !isModelConfigReady || !isInit) return;
+
+    hasProcessedImageUrl.current = true;
+    setImageUrl(decodeURIComponent(imageUrlParam));
+    setImageUrlParam(null);
+  }, [imageUrlParam, modelParam, isModelConfigReady, isInit, setImageUrl, setImageUrlParam]);
 
   // Auto-fill and auto-send when prompt query parameter is present
   useEffect(() => {

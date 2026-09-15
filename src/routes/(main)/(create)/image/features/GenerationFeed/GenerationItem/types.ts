@@ -13,6 +13,7 @@ export interface ActionButtonsProps {
   onDelete: () => void;
   onDownload?: () => void;
   onRemoveBackground?: () => void;
+  onSendToVideo?: () => void;
   onUpscale?: () => void;
   seedTooltip?: string;
   showCopySeed?: boolean;
@@ -31,6 +32,7 @@ export interface SuccessStateProps {
   onDelete: () => void;
   onDownload: () => void;
   onRemoveBackground: () => void;
+  onSendToVideo: () => void;
   onUpscale: () => void;
   prompt: string;
   seedTooltip?: string;

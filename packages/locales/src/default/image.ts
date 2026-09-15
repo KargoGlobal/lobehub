@@ -137,6 +137,7 @@ export default {
   'generation.actions.seedApplyFailed': 'Failed to Apply Seed',
   'generation.actions.seedCopied': 'Seed Copied to Clipboard',
   'generation.actions.seedCopyFailed': 'Failed to Copy Seed',
+  'generation.actions.sendToVideo': 'Send to Video',
   'generation.actions.upscale': 'Upscale',
   'generation.actions.upscaleFailed': 'Failed to upscale image. Please try again.',
   'generation.approval.approved': 'Approved',

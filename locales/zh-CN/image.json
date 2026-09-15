@@ -156,6 +156,7 @@
   "generation.actions.seedApplyFailed": "应用种子遇到了问题。你可以重试",
   "generation.actions.seedCopied": "种子已复制到剪贴板",
   "generation.actions.seedCopyFailed": "复制遇到了问题。你可以再试一次",
+  "generation.actions.sendToVideo": "发送到视频",
   "generation.actions.upscale": "放大",
   "generation.actions.upscaleFailed": "图片放大失败，请重试。",
   "generation.approval.approved": "已批准",
