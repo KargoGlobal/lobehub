@@ -134,7 +134,13 @@ export class GenerationConfigActionImpl {
     this.#set(
       (state) => {
         const { parameters } = state;
-        return { parameters: { ...parameters, [paramName]: value } };
+        // A manual edit to the reference images means the user took over from
+        // Refine; their references then persist like any other upload.
+        const isReferenceParam = paramName === 'imageUrl' || paramName === 'imageUrls';
+        return {
+          parameters: { ...parameters, [paramName]: value },
+          ...(isReferenceParam ? { isRefiningFromResult: false } : {}),
+        };
       },
       false,
       `setParamOnInput/${paramName}`,
@@ -319,6 +325,7 @@ export class GenerationConfigActionImpl {
         parametersSchema,
         isAspectRatioLocked: false,
         activeAspectRatio: initialActiveRatio,
+        isRefiningFromResult: shouldKeepRefineFlag(this.#get().isRefiningFromResult, parameters),
       },
       false,
       `setModelAndProviderOnSelect/${model}/${provider}`,

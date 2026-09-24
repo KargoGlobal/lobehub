@@ -281,6 +281,53 @@ describe('CreateImageAction', () => {
       expect(result.current.parameters?.width).toBe(1024);
       expect(result.current.parameters?.height).toBe(1024);
     });
+
+    it('clears refine-attached references after a successful generation', async () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: {
+          prompt: 'make the background brighter',
+          imageUrls: ['https://cdn.example/out.png'],
+        },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      const { result } = renderHook(() => useImageStore());
+      await act(async () => {
+        await result.current.createImage();
+      });
+
+      const state = useImageStore.getState();
+      expect(state.parameters?.prompt).toBe('');
+      expect(state.parameters?.imageUrls).toEqual([]);
+      expect(state.isRefiningFromResult).toBe(false);
+    });
+
+    it('keeps manually uploaded references after a successful generation', async () => {
+      useImageStore.setState({
+        isRefiningFromResult: false,
+        parameters: {
+          prompt: 'studio product shot',
+          imageUrls: ['https://user.example/upload.png'],
+        },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      const { result } = renderHook(() => useImageStore());
+      await act(async () => {
+        await result.current.createImage();
+      });
+
+      const state = useImageStore.getState();
+      expect(state.parameters?.prompt).toBe('');
+      expect(state.parameters?.imageUrls).toEqual(['https://user.example/upload.png']);
+    });
   });
 
   describe('createUtilityImage', () => {

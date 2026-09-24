@@ -105,10 +105,21 @@ export class CreateImageActionImpl {
         await this.#get().refreshGenerationBatches();
       }
 
-      // 7. Clear the prompt input after successful image creation
+      // 7. Clear the prompt after success. References attached by Refine are
+      // one-shot and cleared with it; manual uploads persist for the next run.
       this.#set(
         (state) => ({
-          parameters: { ...state.parameters, prompt: '' },
+          isRefiningFromResult: false,
+          parameters: {
+            ...state.parameters,
+            prompt: '',
+            ...(state.isRefiningFromResult
+              ? {
+                  ...(state.parametersSchema?.imageUrl ? { imageUrl: null } : {}),
+                  ...(state.parametersSchema?.imageUrls ? { imageUrls: [] } : {}),
+                }
+              : {}),
+          },
         }),
         false,
         'createImage/clearPrompt',

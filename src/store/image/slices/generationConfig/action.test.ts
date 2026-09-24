@@ -809,4 +809,42 @@ describe('GenerationConfigAction', () => {
       expect(shouldKeepRefineFlag(false, { imageUrls: ['a'], prompt: '' } as any)).toBe(false);
     });
   });
+
+  describe('refine flag resets', () => {
+    it('setParamOnInput on a reference param leaves refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: '', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().setParamOnInput('imageUrls', ['https://user.example/mine.png']);
+      });
+
+      const state = useImageStore.getState();
+      expect(state.isRefiningFromResult).toBe(false);
+      expect(state.parameters?.imageUrls).toEqual(['https://user.example/mine.png']);
+    });
+
+    it('setParamOnInput on a non-reference param keeps refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: '', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().setParamOnInput('prompt', 'new words');
+      });
+
+      expect(useImageStore.getState().isRefiningFromResult).toBe(true);
+    });
+  });
 });
