@@ -5,6 +5,7 @@ import { type VideoGenerationConfigState } from './initialState';
 const model = (s: VideoGenerationConfigState) => s.model;
 const provider = (s: VideoGenerationConfigState) => s.provider;
 const uploadingImagePreviews = (s: VideoGenerationConfigState) => s.uploadingImagePreviews;
+const heldReferenceImage = (s: VideoGenerationConfigState) => s.heldReferenceImage;
 
 const parameters = (s: VideoGenerationConfigState) => s.parameters;
 const parametersSchema = (s: VideoGenerationConfigState) => s.parametersSchema;
@@ -16,6 +17,7 @@ const isSupportedParam = (paramName: RuntimeVideoGenParamsKeys) => {
 };
 
 export const videoGenerationConfigSelectors = {
+  heldReferenceImage,
   isSupportedParam,
   model,
   parameters,

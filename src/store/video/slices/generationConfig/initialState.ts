@@ -57,6 +57,14 @@ export interface VideoGenerationConfigState {
   uploadingImagePreviews: string[];
 
   /**
+   * A reference frame held in escrow when the user switches to a model whose
+   * schema has no image param at all (neither `imageUrl` nor `imageUrls`), so
+   * switching back to an image-capable model restores it instead of the frame
+   * being silently dropped. Cleared once restored.
+   */
+  heldReferenceImage: string | null;
+
+  /**
    * Marks whether the configuration has been initialized (including restoration from memory)
    */
   isInit: boolean;
@@ -71,5 +79,6 @@ export const initialGenerationConfigState: VideoGenerationConfigState = {
   parameters: DEFAULT_VIDEO_GENERATION_PARAMETERS,
   parametersSchema: seedance20Params,
   uploadingImagePreviews: [],
+  heldReferenceImage: null,
   isInit: false,
 };
