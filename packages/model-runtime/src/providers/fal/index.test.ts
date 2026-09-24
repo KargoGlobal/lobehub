@@ -1120,6 +1120,70 @@ describe('LobeFalAI', () => {
       });
     });
 
+    describe('Veo image-to-video', () => {
+      it('should route to the /image-to-video endpoint and force aspect_ratio "auto" when a frame is attached', async () => {
+        const result = await instance.createVideo({
+          model: 'fal-ai/veo3.1',
+          params: {
+            aspectRatio: '16:9',
+            duration: 8,
+            imageUrl: 'https://cdn.example.com/frame.png',
+            prompt: 'the product spins into frame',
+            resolution: '1080p',
+          },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('fal-ai/veo3.1/image-to-video');
+        expect(input).toEqual({
+          aspect_ratio: 'auto',
+          duration: '8s',
+          image_url: 'https://cdn.example.com/frame.png',
+          prompt: 'the product spins into frame',
+          resolution: '1080p',
+        });
+        expect(result).toEqual({ inferenceId: 'fal-ai/veo3.1/image-to-video::req-1' });
+      });
+
+      it('should route the Fast variant to its own /image-to-video endpoint', async () => {
+        await instance.createVideo({
+          model: 'fal-ai/veo3.1/fast',
+          params: {
+            imageUrl: 'https://cdn.example.com/frame.png',
+            prompt: 'x',
+          },
+        });
+
+        const [endpoint] = submitted();
+        expect(endpoint).toBe('fal-ai/veo3.1/fast/image-to-video');
+      });
+
+      it('should not send aspect_ratio "auto" when no frame is attached (regression: text-to-video unaffected)', async () => {
+        await instance.createVideo({
+          model: 'fal-ai/veo3.1',
+          params: { aspectRatio: '9:16', duration: 6, prompt: 'text only' },
+        });
+
+        const [endpoint, { input }] = submitted();
+        expect(endpoint).toBe('fal-ai/veo3.1');
+        expect(input.aspect_ratio).toBe('9:16');
+      });
+
+      it('should forward seed alongside the image', async () => {
+        await instance.createVideo({
+          model: 'fal-ai/veo3.1',
+          params: {
+            imageUrl: 'https://cdn.example.com/frame.png',
+            prompt: 'x',
+            seed: 7,
+          },
+        });
+
+        const [, { input }] = submitted();
+        expect(input.seed).toBe(7);
+      });
+    });
+
     describe('MiniMax H3 Max', () => {
       it('should route to text-to-video when no start frame is attached', async () => {
         const result = await instance.createVideo({

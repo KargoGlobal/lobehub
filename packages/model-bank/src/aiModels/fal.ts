@@ -437,12 +437,16 @@ const falImageModels: AIImageModelCard[] = [
   },
 ];
 
-const falVideoParamsSchema = {
+const falVideoParamsSchema: VideoModelParamsSchema = {
   aspectRatio: {
     default: '16:9',
     enum: ['16:9', '9:16'],
   },
   duration: { default: 8, enum: [4, 6, 8] },
+  // `fal-ai/veo3.1/image-to-video` (and `/fast/image-to-video`) — verified against the
+  // live fal OpenAPI schema 2026-09-23. When set, the runtime routes to that endpoint
+  // and forces `aspect_ratio: "auto"` (fal derives the real ratio from the frame).
+  imageUrl: { default: null },
   prompt: { default: '' },
   resolution: {
     default: '720p',

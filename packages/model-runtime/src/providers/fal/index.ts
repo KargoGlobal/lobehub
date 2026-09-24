@@ -36,6 +36,34 @@ const resolveFalEndpoint = (model: string) =>
 // image-to-video variants are separate endpoints, and they accept a start/end
 // frame pair plus a `prompt_expansion_mode`.
 const isFalH3Endpoint = (endpoint: string) => /^minimax\/h3(?:-max)?(?:\/|$)/.test(endpoint);
+
+// Veo 3.1 / Veo 3.1 Fast on fal. Text-to-video and image-to-video are separate
+// endpoints, same as H3 above; unlike H3, the image-to-video variant still takes
+// `aspect_ratio`, but only the "auto" value (fal derives the real ratio from the
+// attached frame — verified against the live fal OpenAPI schema 2026-09-23).
+const isFalVeoEndpoint = (endpoint: string) => /^fal-ai\/veo3\.1(?:\/fast)?$/.test(endpoint);
+
+const buildFalVeoVideoInput = (
+  endpoint: string,
+  params: CreateVideoPayload['params'],
+): { endpoint: string; input: Record<string, unknown> } => {
+  const hasImage = typeof params.imageUrl === 'string' && params.imageUrl.length > 0;
+  const resolvedEndpoint = hasImage ? `${endpoint}/image-to-video` : endpoint;
+
+  const input: Record<string, unknown> = { prompt: params.prompt };
+  if (hasImage) {
+    input.image_url = params.imageUrl;
+    input.aspect_ratio = 'auto';
+  } else if (params.aspectRatio) {
+    input.aspect_ratio = params.aspectRatio;
+  }
+  // fal video endpoints take duration as an enum string like "8s"
+  if (params.duration) input.duration = `${params.duration}s`;
+  if (params.resolution) input.resolution = params.resolution;
+  if (params.seed !== null && params.seed !== undefined) input.seed = params.seed;
+
+  return { endpoint: resolvedEndpoint, input };
+};
 const H3_DURATION_MIN = 5;
 const H3_DURATION_MAX = 15;
 const H3_PROMPT_EXPANSION_MODES = new Set(['balanced', 'quality']);
@@ -425,6 +453,8 @@ export class LobeFalAI implements LobeRuntimeAI {
       input = buildFalAvatarInput(endpoint, params as Record<string, unknown>);
     } else if (isFalVideoRestyleEndpoint(endpoint)) {
       input = buildFalVideoRestyleInput(endpoint, params as Record<string, unknown>);
+    } else if (isFalVeoEndpoint(endpoint)) {
+      ({ endpoint, input } = buildFalVeoVideoInput(endpoint, params));
     } else {
       input = { prompt: params.prompt };
       if (params.aspectRatio) input.aspect_ratio = params.aspectRatio;
