@@ -49,19 +49,28 @@ const DimensionControlGroup = memo(() => {
 
   const lockIcon = isLocked ? LockIcon : UnlockIcon;
 
+  // The lock toggle (and the width/height it locks together) only means
+  // anything for models with pixel dimensions. GPT Image 2 / Nano Banana 2
+  // (fal) only have an aspectRatio enum — no width/height schema — so
+  // toggleAspectRatioLock/setWidth/setHeight are all no-ops for them; showing
+  // a clickable lock icon there is dead UI (spec chunk 3 fix-up).
+  const hasDimensionSliders = Boolean(widthSchema) || Boolean(heightSchema);
+
   return (
     <Flexbox gap={16}>
       {/* Aspect ratio selector */}
       <Flexbox gap={8}>
         <Flexbox horizontal align="center" distribution="space-between">
           <span style={styles.label}>{t('config.aspectRatio.label')}</span>
-          <ActionIcon
-            aria-label={lockButtonTitle}
-            icon={lockIcon}
-            size="small"
-            title={lockButtonTitle}
-            onClick={toggleLock}
-          />
+          {hasDimensionSliders && (
+            <ActionIcon
+              aria-label={lockButtonTitle}
+              icon={lockIcon}
+              size="small"
+              title={lockButtonTitle}
+              onClick={toggleLock}
+            />
+          )}
         </Flexbox>
         <AspectRatioSelect
           options={aspectRatioOptions}
