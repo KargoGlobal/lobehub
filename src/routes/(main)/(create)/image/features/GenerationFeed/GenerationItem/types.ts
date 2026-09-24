@@ -9,8 +9,10 @@ export interface GenerationItemProps {
 export interface ActionButtonsProps {
   /** Actual pixel height of the generated image; feeds the ad-spec validator. */
   height?: number;
+  /** Shown only on in-flight generations; marks the async task cancelled. */
+  onCancel?: () => void;
   onCopySeed?: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   onDownload?: () => void;
   onRefine?: () => void;
   onRemoveBackground?: () => void;
@@ -52,5 +54,6 @@ export interface LoadingStateProps {
   aspectRatio: string;
   generation: Generation;
   generationBatch: GenerationBatch;
+  onCancel: () => void;
   onDelete: () => void;
 }

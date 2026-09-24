@@ -3,7 +3,7 @@
 import { type ActionIconGroupProps, Flexbox } from '@lobehub/ui';
 import { ActionIconGroup } from '@lobehub/ui';
 import { type ActionIconProps } from '@lobehub/ui/base-ui';
-import { Dices, Download, Eraser, Sparkles, SquarePen, Trash2, Video } from 'lucide-react';
+import { Ban, Dices, Download, Eraser, Sparkles, SquarePen, Trash2, Video } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -20,6 +20,7 @@ const actionIconProps: Partial<Omit<ActionIconProps, 'size' | 'ref' | 'icon'>> =
 // Action buttons component
 export const ActionButtons = memo<ActionButtonsProps>(
   ({
+    onCancel,
     onDelete,
     onDownload,
     onCopySeed,
@@ -84,7 +85,13 @@ export const ActionButtons = memo<ActionButtonsProps>(
                   label: seedTooltip,
                   onClick: onCopySeed,
                 },
-                {
+                Boolean(onCancel) && {
+                  icon: Ban,
+                  key: 'cancel',
+                  label: t('generation.actions.cancel'),
+                  onClick: onCancel,
+                },
+                Boolean(onDelete) && {
                   danger: true,
                   icon: Trash2,
                   key: 'delete',
@@ -102,6 +109,7 @@ export const ActionButtons = memo<ActionButtonsProps>(
               showCopySeed,
               onCopySeed,
               seedTooltip,
+              onCancel,
               onDelete,
               t,
             ],

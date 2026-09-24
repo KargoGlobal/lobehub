@@ -3,12 +3,12 @@
 import { Text } from '@lobehub/ui/base-ui';
 import { useEffect, useRef, useState } from 'react';
 
+import { clearGenerationStartTime, getGenerationStartTime } from './startTime';
+
 interface ElapsedTimeProps {
   generationId: string;
   isActive: boolean;
 }
-
-const getSessionStorageKey = (generationId: string) => `generation_start_time_${generationId}`;
 
 /**
  * Display elapsed time for image generation
@@ -30,23 +30,13 @@ export function ElapsedTime({ generationId, isActive }: ElapsedTimeProps) {
       }
 
       // Clear data from sessionStorage
-      const storageKey = getSessionStorageKey(generationId);
-      sessionStorage.removeItem(storageKey);
+      clearGenerationStartTime(generationId);
       setElapsedTime(null);
       return;
     }
 
-    const storageKey = getSessionStorageKey(generationId);
-
     // Only set start time when the component mounts
-    const clientStartTime = (() => {
-      const stored = sessionStorage.getItem(storageKey);
-      if (stored) return Number(stored);
-
-      const now = Date.now();
-      sessionStorage.setItem(storageKey, now.toString());
-      return now;
-    })();
+    const clientStartTime = getGenerationStartTime(generationId);
 
     const update = (timestamp: number) => {
       if (timestamp - lastUpdateRef.current >= 100) {

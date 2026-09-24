@@ -90,6 +90,24 @@ export const getImageDimensions = (
   };
 };
 
+/**
+ * Formats an ETA in milliseconds as a short "Ns" / "Nm Ns" string for the
+ * "~Ns left" remaining-time text. Always rounds up and never reports zero
+ * (or negative) while still active, so the text doesn't read "0s left" for
+ * the second before the estimate is exceeded and the caller falls back to
+ * `ElapsedTime`.
+ */
+export const formatRemainingTime = (ms: number): string => {
+  const totalSeconds = Math.max(1, Math.ceil(ms / 1000));
+
+  if (totalSeconds < 60) return `${totalSeconds}s`;
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+};
+
 export const getAspectRatio = (
   generation: Generation,
   generationBatch?: GenerationBatch,

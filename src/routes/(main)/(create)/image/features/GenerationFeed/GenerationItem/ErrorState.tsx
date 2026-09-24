@@ -3,7 +3,7 @@
 import { Block, Center, Icon } from '@lobehub/ui';
 import { Text } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
-import { ImageOffIcon } from 'lucide-react';
+import { Ban, ImageOffIcon } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -83,6 +83,7 @@ export const ErrorState = memo<ErrorStateProps>(
 
     const isProviderContentModerationError =
       generation.task.error?.name === AsyncTaskErrorType.ProviderContentModeration;
+    const isCancelled = generation.task.error?.name === AsyncTaskErrorType.TaskCancelled;
 
     return (
       <Block
@@ -99,13 +100,19 @@ export const ErrorState = memo<ErrorStateProps>(
         onClick={onCopyError}
       >
         <Center gap={8}>
-          <Icon color={cssVar.colorTextDescription} icon={ImageOffIcon} size={24} />
+          <Icon
+            color={cssVar.colorTextDescription}
+            icon={isCancelled ? Ban : ImageOffIcon}
+            size={24}
+          />
           <Text strong align={'center'} type={'secondary'}>
-            {isProviderContentModerationError
-              ? errorMessage || tError('response.ProviderContentModeration')
-              : t('generation.status.failed')}
+            {isCancelled
+              ? t('generation.status.cancelled')
+              : isProviderContentModerationError
+                ? errorMessage || tError('response.ProviderContentModeration')
+                : t('generation.status.failed')}
           </Text>
-          {generation.task.error && !isProviderContentModerationError && (
+          {generation.task.error && !isProviderContentModerationError && !isCancelled && (
             <Text
               code
               ellipsis={{ rows: 2 }}
