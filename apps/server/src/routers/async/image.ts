@@ -126,7 +126,27 @@ export const imageRouter = router({
       let prechargeResult: unknown;
 
       log('Updating task status to Processing: %s', taskId);
-      await asyncTaskModel.update(taskId, { status: AsyncTaskStatus.Processing });
+      // Guarded: this async-router invocation is a real HTTP round trip away
+      // from the lambda mutation that created the task and handed its id
+      // back to the client — long enough for a cancel to land before this
+      // handler even starts. If the guard misses, the task is already
+      // terminal (almost certainly cancelled): skip the provider call
+      // entirely rather than resurrecting it into Processing and spending a
+      // fal call on a generation nobody wants. This is the best possible
+      // cancel outcome (zero provider spend).
+      const stillActive = await asyncTaskModel.updateIfActive(taskId, {
+        status: AsyncTaskStatus.Processing,
+      });
+      if (!stillActive) {
+        log(
+          'Task %s is no longer active (likely cancelled) before processing started; skipping provider call',
+          taskId,
+        );
+        return {
+          message: `Task ${taskId} was already resolved before processing started`,
+          success: true,
+        };
+      }
 
       // Use AbortController to prevent resource leaks
       const abortController = new AbortController();
