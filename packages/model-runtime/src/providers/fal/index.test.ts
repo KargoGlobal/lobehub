@@ -1681,6 +1681,41 @@ describe('LobeFalAI', () => {
       });
     });
 
+    it('passes ElevenLabs break-tag pause markup through unaltered', async () => {
+      await instance.textToSpeech({
+        input: 'Spring sale starts now.<break time="1s" /> Everything must go.',
+        model: 'fal-ai/elevenlabs/tts/turbo-v2.5',
+        voice: 'Rachel',
+      });
+      const [, { input }] = subscribed();
+      expect(input.text).toBe('Spring sale starts now.<break time="1s" /> Everything must go.');
+    });
+
+    // MiniMax's speech-2.8-hd endpoint uses its own `<#x#>` pause marker
+    // (x = 0.01-99.99 seconds), not ElevenLabs' SSML-like `<break>` tag —
+    // verified against fal's live model docs 2026-09-24. Sending the raw
+    // ElevenLabs tag would make MiniMax read the markup aloud, so it's
+    // translated rather than stripped.
+    it('translates an ElevenLabs break tag into MiniMax’s pause marker', async () => {
+      await instance.textToSpeech({
+        input: 'Spring sale starts now.<break time="1.5s" /> Everything must go.',
+        model: 'fal-ai/minimax/speech-2.8-hd',
+        voice: 'Wise_Woman',
+      });
+      const [, { input }] = subscribed();
+      expect(input.prompt).toBe('Spring sale starts now.<#1.5#> Everything must go.');
+    });
+
+    it('clamps a translated MiniMax pause to the endpoint’s supported range', async () => {
+      await instance.textToSpeech({
+        input: 'Long silence.<break time="150s" /> then a word. Tiny gap.<break time="0s" /> ok',
+        model: 'fal-ai/minimax/speech-2.8-hd',
+        voice: 'Wise_Woman',
+      });
+      const [, { input }] = subscribed();
+      expect(input.prompt).toBe('Long silence.<#99.99#> then a word. Tiny gap.<#0.01#> ok');
+    });
+
     it('maps music length and instrumental flag', async () => {
       await instance.textToSpeech({
         input: 'upbeat indie pop',

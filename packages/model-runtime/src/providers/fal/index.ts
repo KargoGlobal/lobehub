@@ -243,6 +243,28 @@ export const buildFalVideoRestyleInput = (
   return input;
 };
 
+// ElevenLabs TTS endpoints understand SSML-like `<break time="Ns" />` markup
+// for an N-second pause (the app's Ad Voice tool inserts these). MiniMax's
+// speech-2.8-hd endpoint has no SSML support but documents its own `<#x#>`
+// marker for the same purpose (x = 0.01-99.99 seconds, verified against fal's
+// live model docs 2026-09-24) — translate rather than strip so MiniMax scripts
+// keep the pause instead of losing it or reading the ElevenLabs tag aloud.
+const ELEVENLABS_BREAK_TAG = /<break\s+time="(\d+(?:\.\d+)?)s"\s*\/>/g;
+const MINIMAX_PAUSE_SECONDS_MIN = 0.01;
+const MINIMAX_PAUSE_SECONDS_MAX = 99.99;
+
+export const translateBreaksForMiniMax = (text: string): string =>
+  text.replaceAll(ELEVENLABS_BREAK_TAG, (_match, seconds: string) => {
+    const clamped = Math.min(
+      MINIMAX_PAUSE_SECONDS_MAX,
+      Math.max(MINIMAX_PAUSE_SECONDS_MIN, Number(seconds)),
+    );
+    // Up to two decimal places; trim a trailing ".00"/".x0" so whole and
+    // one-decimal seconds ("1s", "1.5s") stay as clean as the input looked.
+    const rounded = Math.round(clamped * 100) / 100;
+    return `<#${rounded}#>`;
+  });
+
 // Audio endpoints (voiceover, music, sound effects). All synchronous via
 // `fal.subscribe`, all return `{ audio: { url } }`; only the request shape
 // differs per vendor. Verified against each endpoint's live OpenAPI schema.
@@ -271,7 +293,10 @@ const FAL_AUDIO_BUILDERS: [
       if (voice) voice_setting.voice_id = voice;
       if (typeof params.speed === 'number') voice_setting.speed = params.speed;
       if (typeof params.emotion === 'string') voice_setting.emotion = params.emotion;
-      const body: Record<string, unknown> = { output_format: 'url', prompt: input };
+      const body: Record<string, unknown> = {
+        output_format: 'url',
+        prompt: translateBreaksForMiniMax(input),
+      };
       if (Object.keys(voice_setting).length > 0) body.voice_setting = voice_setting;
       return body;
     },
