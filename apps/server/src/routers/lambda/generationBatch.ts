@@ -7,7 +7,7 @@ import { GenerationBatchModel } from '@/database/models/generationBatch';
 import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { FileService } from '@/server/services/file';
-import { getVideoAvgLatency } from '@/server/services/generation/latency';
+import { getGenerationAvgLatency } from '@/server/services/generation/latency';
 
 import { assertWorkspaceRowManageable } from './_helpers/assertWorkspaceRowManageable';
 
@@ -66,14 +66,17 @@ export const generationBatchRouter = router({
         input.topicId,
       );
 
-      if (input.type !== 'video') return batches;
+      // Image and video both get an honest "avg latency" estimate; any other
+      // caller (type omitted) gets the raw batches with no enrichment.
+      if (input.type !== 'video' && input.type !== 'image') return batches;
 
+      const mediaType = input.type;
       const uniqueModels = [...new Set(batches.map((b) => b.model))];
       const latencyMap = new Map<string, number | null>();
 
       await Promise.all(
         uniqueModels.map(async (model) => {
-          const latency = await getVideoAvgLatency(model).catch(() => null);
+          const latency = await getGenerationAvgLatency(mediaType, model).catch(() => null);
           latencyMap.set(model, latency);
         }),
       );

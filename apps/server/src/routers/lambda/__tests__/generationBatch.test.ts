@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { GenerationBatchModel } from '@/database/models/generationBatch';
 import { type GenerationBatchItem } from '@/database/schemas/generation';
 import { FileService } from '@/server/services/file';
-import { getVideoAvgLatency } from '@/server/services/generation/latency';
+import { getGenerationAvgLatency } from '@/server/services/generation/latency';
 
 import { generationBatchRouter } from '../generationBatch';
 
@@ -392,20 +392,6 @@ describe('generationBatchRouter', () => {
       { id: 'batch-2', model: 'model-b', generations: [] },
     ];
 
-    it('should skip latency enrichment when type is image', async () => {
-      const mockQuery = vi.fn().mockResolvedValue(mockBatches);
-      vi.mocked(GenerationBatchModel).mockImplementation(
-        () => ({ queryGenerationBatchesByTopicIdWithGenerations: mockQuery }) as any,
-      );
-      vi.mocked(FileService).mockImplementation(() => ({}) as any);
-
-      const caller = generationBatchRouter.createCaller(mockCtx);
-      const result = await caller.getGenerationBatches({ topicId: 'topic-1', type: 'image' });
-
-      expect(result).toEqual(mockBatches);
-      expect(getVideoAvgLatency).not.toHaveBeenCalled();
-    });
-
     it('should skip latency enrichment when type is omitted', async () => {
       const mockQuery = vi.fn().mockResolvedValue(mockBatches);
       vi.mocked(GenerationBatchModel).mockImplementation(
@@ -417,7 +403,7 @@ describe('generationBatchRouter', () => {
       const result = await caller.getGenerationBatches({ topicId: 'topic-1' });
 
       expect(result).toEqual(mockBatches);
-      expect(getVideoAvgLatency).not.toHaveBeenCalled();
+      expect(getGenerationAvgLatency).not.toHaveBeenCalled();
     });
 
     it('should enrich batches with latency when type is video', async () => {
@@ -426,7 +412,8 @@ describe('generationBatchRouter', () => {
         () => ({ queryGenerationBatchesByTopicIdWithGenerations: mockQuery }) as any,
       );
       vi.mocked(FileService).mockImplementation(() => ({}) as any);
-      vi.mocked(getVideoAvgLatency).mockImplementation(async (model) => {
+      vi.mocked(getGenerationAvgLatency).mockImplementation(async (mediaType, model) => {
+        expect(mediaType).toBe('video');
         if (model === 'model-a') return 120_000;
         if (model === 'model-b') return 180_000;
         return null;
@@ -441,6 +428,28 @@ describe('generationBatchRouter', () => {
       ]);
     });
 
+    it('should enrich batches with latency when type is image', async () => {
+      const mockQuery = vi.fn().mockResolvedValue(mockBatches);
+      vi.mocked(GenerationBatchModel).mockImplementation(
+        () => ({ queryGenerationBatchesByTopicIdWithGenerations: mockQuery }) as any,
+      );
+      vi.mocked(FileService).mockImplementation(() => ({}) as any);
+      vi.mocked(getGenerationAvgLatency).mockImplementation(async (mediaType, model) => {
+        expect(mediaType).toBe('image');
+        if (model === 'model-a') return 30_000;
+        if (model === 'model-b') return 45_000;
+        return null;
+      });
+
+      const caller = generationBatchRouter.createCaller(mockCtx);
+      const result = await caller.getGenerationBatches({ topicId: 'topic-1', type: 'image' });
+
+      expect(result).toEqual([
+        { ...mockBatches[0], avgLatencyMs: 30_000 },
+        { ...mockBatches[1], avgLatencyMs: 45_000 },
+      ]);
+    });
+
     it('should deduplicate model latency lookups', async () => {
       const sameModelBatches = [
         { id: 'batch-1', model: 'model-a', generations: [] },
@@ -452,12 +461,12 @@ describe('generationBatchRouter', () => {
         () => ({ queryGenerationBatchesByTopicIdWithGenerations: mockQuery }) as any,
       );
       vi.mocked(FileService).mockImplementation(() => ({}) as any);
-      vi.mocked(getVideoAvgLatency).mockResolvedValue(100_000);
+      vi.mocked(getGenerationAvgLatency).mockResolvedValue(100_000);
 
       const caller = generationBatchRouter.createCaller(mockCtx);
       await caller.getGenerationBatches({ topicId: 'topic-1', type: 'video' });
 
-      expect(getVideoAvgLatency).toHaveBeenCalledTimes(1);
+      expect(getGenerationAvgLatency).toHaveBeenCalledTimes(1);
     });
 
     it('should fallback to null when latency lookup fails', async () => {
@@ -466,7 +475,7 @@ describe('generationBatchRouter', () => {
         () => ({ queryGenerationBatchesByTopicIdWithGenerations: mockQuery }) as any,
       );
       vi.mocked(FileService).mockImplementation(() => ({}) as any);
-      vi.mocked(getVideoAvgLatency).mockRejectedValue(new Error('DB timeout'));
+      vi.mocked(getGenerationAvgLatency).mockRejectedValue(new Error('DB timeout'));
 
       const caller = generationBatchRouter.createCaller(mockCtx);
       const result = await caller.getGenerationBatches({ topicId: 'topic-1', type: 'video' });
