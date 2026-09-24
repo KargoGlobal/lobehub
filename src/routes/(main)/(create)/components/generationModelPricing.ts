@@ -65,7 +65,7 @@ export const formatEstimatedCostLabel = ({
     {
       amount,
       defaultValue: isVideo
-        ? `est. provider cost: $${amount} / video second`
+        ? `est. provider cost: $${amount} / video`
         : `est. provider cost: $${amount} / image`,
     },
   );

@@ -40,9 +40,9 @@ interface ToolSpec {
  * mounts that tool's own existing modal unchanged.
  *
  * A tool that can't apply to the currently selected model shows disabled with
- * the reason (discoverability), rather than being hidden (Tiffany's "too many
- * icons" feedback) or silently enabled (which would let the user configure a
- * request that can't actually run).
+ * the reason, so it stays discoverable, rather than being hidden or silently
+ * enabled (which would let the user configure a request that can't actually
+ * run).
  */
 const ToolsMenu = memo(() => {
   const { t } = useTranslation('video');

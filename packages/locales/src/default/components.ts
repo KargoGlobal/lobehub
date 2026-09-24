@@ -117,7 +117,7 @@ export default {
   'GenerationModelItem.creditsPerVideoExact': '{{amount}} Credits / video',
   'GenerationModelItem.estimatedCostFromPerImage': 'from ${{amount}} / image (scales with size)',
   'GenerationModelItem.estimatedCostPerImage': 'est. provider cost: ${{amount}} / image',
-  'GenerationModelItem.estimatedCostPerVideo': 'est. provider cost: ${{amount}} / video second',
+  'GenerationModelItem.estimatedCostPerVideo': 'est. provider cost: ${{amount}} / video',
   'GenerationModelItem.estimatedCostTooltip':
     "The provider's list price for this generated output, charged to the team account — not a bill to you.",
   'GoBack.back': 'Back',
@@ -204,7 +204,7 @@ export default {
   'ModelSwitchPanel.detail.pricing.credits.perImageScales':
     'from {{amount}} credits / image (scales with size)',
   'ModelSwitchPanel.detail.pricing.credits.perVideo':
-    'est. provider cost: {{amount}} credits / video second',
+    'est. provider cost: {{amount}} credits / video',
   'ModelSwitchPanel.detail.pricing.credits.image': 'credits/img',
   'ModelSwitchPanel.detail.pricing.credits.megapixel': 'credits/MP',
   'ModelSwitchPanel.detail.pricing.credits.millionCharacters': 'credits/M chars',
@@ -218,7 +218,7 @@ export default {
   'ModelSwitchPanel.detail.pricing.output': 'Output ${{amount}}/M',
   'ModelSwitchPanel.detail.pricing.perImage': 'est. provider cost: ${{amount}} / image',
   'ModelSwitchPanel.detail.pricing.perImageScales': 'from ${{amount}} / image (scales with size)',
-  'ModelSwitchPanel.detail.pricing.perVideo': 'est. provider cost: ${{amount}} / video second',
+  'ModelSwitchPanel.detail.pricing.perVideo': 'est. provider cost: ${{amount}} / video',
   'ModelSwitchPanel.detail.pricing.unit.audioInput': 'Audio Input',
   'ModelSwitchPanel.detail.pricing.unit.audioInput_cacheRead': 'Audio Input (Cached)',
   'ModelSwitchPanel.detail.pricing.unit.audioOutput': 'Audio Output',

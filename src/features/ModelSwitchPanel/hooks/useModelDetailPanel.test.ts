@@ -225,7 +225,7 @@ describe('useModelDetailPanel', () => {
     expect(result.current.approximatePriceLabel).toBe('from $0.02621 / image (scales with size)');
   });
 
-  it('labels an approximate video price with the video-second suffix', () => {
+  it('labels an approximate video price with a flat "/ video" suffix (approximatePricePerVideo is a whole-video fallback price, not a per-second rate)', () => {
     const videoPricing = {
       approximatePricePerVideo: 0.4,
       currency: 'USD',
@@ -238,7 +238,7 @@ describe('useModelDetailPanel', () => {
       provider: 'fal',
     });
 
-    expect(result.current.approximatePriceLabel).toBe('est. provider cost: $0.40 / video second');
+    expect(result.current.approximatePriceLabel).toBe('est. provider cost: $0.40 / video');
   });
 
   it('updates expanded detail sections', () => {

@@ -392,9 +392,12 @@ export const useModelDetailPanel = ({
           : 'ModelSwitchPanel.detail.pricing.perVideo',
         {
           amount,
+          // approximatePricePerVideo (and pricePerVideo) are whole-video fallback
+          // prices, not per-second rates — the real per-second unit price renders
+          // separately via pricingGroups/formatUnitPrice, so this stays "/ video".
           defaultValue: isCreditPricing
-            ? 'est. provider cost: {{amount}} credits / video second'
-            : 'est. provider cost: ${{amount}} / video second',
+            ? 'est. provider cost: {{amount}} credits / video'
+            : 'est. provider cost: ${{amount}} / video',
         },
       );
     }

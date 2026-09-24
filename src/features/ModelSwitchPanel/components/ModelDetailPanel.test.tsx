@@ -116,7 +116,7 @@ const translations: Record<string, string> = {
   'ModelSwitchPanel.detail.pricing.credits.perImageScales':
     'from {{amount}} credits / image (scales with size)',
   'ModelSwitchPanel.detail.pricing.credits.perVideo':
-    'est. provider cost: {{amount}} credits / video second',
+    'est. provider cost: {{amount}} credits / video',
   'ModelSwitchPanel.detail.pricing.credits.image': 'credits/img',
   'ModelSwitchPanel.detail.pricing.credits.millionTokens': 'credits/M tokens',
   'ModelSwitchPanel.detail.pricing.group.image': 'Image',
@@ -125,7 +125,7 @@ const translations: Record<string, string> = {
   'ModelSwitchPanel.detail.pricing.output': 'Output ${{amount}}/M',
   'ModelSwitchPanel.detail.pricing.perImage': 'est. provider cost: ${{amount}} / image',
   'ModelSwitchPanel.detail.pricing.perImageScales': 'from ${{amount}} / image (scales with size)',
-  'ModelSwitchPanel.detail.pricing.perVideo': 'est. provider cost: ${{amount}} / video second',
+  'ModelSwitchPanel.detail.pricing.perVideo': 'est. provider cost: ${{amount}} / video',
   'ModelSwitchPanel.detail.pricing.unit.imageGeneration': 'Image Generation',
   'ModelSwitchPanel.detail.pricing.unit.textInput': 'Input',
   'ModelSwitchPanel.detail.pricing.unit.textOutput': 'Output',
@@ -359,9 +359,7 @@ describe('ModelDetailPanel pricing', () => {
       />,
     );
 
-    expect(videoResult.container).toHaveTextContent(
-      'est. provider cost: 800.0K credits / video second',
-    );
+    expect(videoResult.container).toHaveTextContent('est. provider cost: 800.0K credits / video');
     expect(videoResult.container).not.toHaveTextContent('$0.80');
   });
 

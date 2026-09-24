@@ -41,9 +41,9 @@ describe('formatEstimatedCostLabel', () => {
     );
   });
 
-  it('labels a per-video price with the video-second suffix', () => {
+  it('labels a per-video price with a flat "/ video" suffix (approximatePricePerVideo/pricePerVideo are already whole-video fallback prices, not per-second rates)', () => {
     expect(formatEstimatedCostLabel({ priceKind: 'video', pricePerVideo: 0.4, t })).toBe(
-      'est. provider cost: $0.40 / video second',
+      'est. provider cost: $0.40 / video',
     );
   });
 
@@ -65,7 +65,7 @@ describe('formatEstimatedCostLabel', () => {
         pricePerVideo: 0.4,
         t,
       }),
-    ).toBe('est. provider cost: $0.40 / video second');
+    ).toBe('est. provider cost: $0.40 / video');
   });
 
   it('returns undefined when no price is available', () => {
