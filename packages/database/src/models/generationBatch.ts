@@ -1,3 +1,4 @@
+import { ASYNC_TASK_TIMEOUT } from '@lobechat/business-config/server';
 import type {
   Generation,
   GenerationBatch,
@@ -5,7 +6,13 @@ import type {
   ImageGenerationAsset,
   VideoGenerationAsset,
 } from '@lobechat/types';
-import { IMAGE_EDIT_URL_FIELDS, VIDEO_INPUT_URL_FIELDS } from '@lobechat/types';
+import {
+  AsyncTaskError,
+  AsyncTaskErrorType,
+  AsyncTaskStatus,
+  IMAGE_EDIT_URL_FIELDS,
+  VIDEO_INPUT_URL_FIELDS,
+} from '@lobechat/types';
 import debug from 'debug';
 import { and, desc, eq, exists } from 'drizzle-orm';
 
@@ -19,6 +26,7 @@ import type {
 import { generationBatches, generationTopics } from '../schemas/generation';
 import type { LobeChatDatabase } from '../type';
 import { buildWorkspacePayload, buildWorkspaceWhere } from '../utils/workspace';
+import { AsyncTaskModel } from './asyncTask';
 import { GenerationModel } from './generation';
 
 const log = debug('lobe-image:generation-batch-model');
@@ -166,6 +174,62 @@ export class GenerationBatchModel {
     return results as unknown as GenerationBatchWithGenerations[];
   }
 
+  /**
+   * Re-opening a topic is the one read that's guaranteed to happen for every
+   * generation in it — client-side polling for a single task's status only
+   * starts once something mounts to watch that specific generation, so a task
+   * the UI never gets around to watching can sit `Pending`/`Processing` long
+   * after `ASYNC_TASK_TIMEOUT` has passed (see the generation batch store's
+   * poll-on-watch behavior). This is the read-time equivalent of
+   * `rescueStuckVideoTask` for tasks with no provider job to ask about: it
+   * just enforces the timeout the client's own poll would have enforced
+   * eventually, so a zombie task resolves to `Error` the moment its topic is
+   * opened instead of spinning until something happens to watch it.
+   *
+   * Mutates `batches` in place (patching each rescued generation's `asyncTask`)
+   * so the caller's already-fetched rows reflect the sweep without a second
+   * round trip.
+   */
+  private async rescueStaleAsyncTasks(batches: GenerationBatchWithGenerations[]): Promise<void> {
+    const now = Date.now();
+    const staleTaskIds: string[] = [];
+
+    for (const batch of batches) {
+      for (const generation of batch.generations) {
+        const task = generation.asyncTask;
+        if (!task) continue;
+
+        const isActive =
+          task.status === AsyncTaskStatus.Pending || task.status === AsyncTaskStatus.Processing;
+        if (!isActive) continue;
+
+        if (now - new Date(task.createdAt).getTime() < ASYNC_TASK_TIMEOUT) continue;
+
+        staleTaskIds.push(task.id);
+      }
+    }
+
+    if (staleTaskIds.length === 0) return;
+
+    const asyncTaskModel = new AsyncTaskModel(this.db, this.userId, this.workspaceId);
+    await asyncTaskModel.checkTimeoutTasks(staleTaskIds);
+
+    const staleIdSet = new Set(staleTaskIds);
+    const timeoutError = new AsyncTaskError(
+      AsyncTaskErrorType.Timeout,
+      'task is timeout, please try again',
+    );
+
+    for (const batch of batches) {
+      for (const generation of batch.generations) {
+        if (generation.asyncTask && staleIdSet.has(generation.asyncTask.id)) {
+          generation.asyncTask.status = AsyncTaskStatus.Error;
+          generation.asyncTask.error = timeoutError;
+        }
+      }
+    }
+  }
+
   async queryGenerationBatchesByTopicIdWithGenerations(
     topicId: string,
   ): Promise<(GenerationBatch & { generations: Generation[] })[]> {
@@ -176,6 +240,8 @@ export class GenerationBatchModel {
       log('No batches found for topic: %s', topicId);
       return [];
     }
+
+    await this.rescueStaleAsyncTasks(batchesWithGenerations);
 
     // Transform the database result to match our frontend types
     const result: GenerationBatch[] = await Promise.all(

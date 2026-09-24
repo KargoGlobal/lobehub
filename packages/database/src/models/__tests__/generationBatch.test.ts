@@ -1,12 +1,20 @@
 // @vitest-environment node
+import { ASYNC_TASK_TIMEOUT } from '@lobechat/business-config/server';
 import type { GenerationConfig } from '@lobechat/types';
-import { AsyncTaskStatus } from '@lobechat/types';
+import { AsyncTaskStatus, AsyncTaskType } from '@lobechat/types';
 import { eq } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
 import type { NewGenerationBatch } from '../../schemas';
-import { generationBatches, generations, generationTopics, users, workspaces } from '../../schemas';
+import {
+  asyncTasks,
+  generationBatches,
+  generations,
+  generationTopics,
+  users,
+  workspaces,
+} from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { GenerationBatchModel } from '../generationBatch';
 
@@ -405,6 +413,115 @@ describe('GenerationBatchModel', () => {
 
       // Verify GenerationModel.transformGeneration was called
       expect(mockTransformGeneration).toHaveBeenCalledTimes(1);
+    });
+
+    describe('stale async task rescue', () => {
+      it('resolves a Pending task older than the timeout before transforming (read-time rescue)', async () => {
+        const [createdBatch] = await serverDB
+          .insert(generationBatches)
+          .values({ ...testBatch, userId })
+          .returning();
+
+        const staleCreatedAt = new Date(Date.now() - ASYNC_TASK_TIMEOUT - 60_000);
+        const [staleTask] = await serverDB
+          .insert(asyncTasks)
+          .values({
+            createdAt: staleCreatedAt,
+            status: AsyncTaskStatus.Pending,
+            type: AsyncTaskType.ImageGeneration,
+            userId,
+          })
+          .returning();
+
+        await serverDB.insert(generations).values({
+          ...testGeneration,
+          asyncTaskId: staleTask.id,
+          generationBatchId: createdBatch.id,
+          id: 'stale-gen',
+        });
+
+        await generationBatchModel.queryGenerationBatchesByTopicIdWithGenerations(testTopic.id);
+
+        // transformGeneration must see the already-rescued task, not the stale
+        // Pending row that was in the database before this read.
+        const call = mockTransformGeneration.mock.calls.find(([gen]) => gen.id === 'stale-gen');
+        expect(call?.[0].asyncTask).toMatchObject({ status: AsyncTaskStatus.Error });
+
+        // And the sweep actually persisted, not just an in-memory patch.
+        const [reloaded] = await serverDB
+          .select()
+          .from(asyncTasks)
+          .where(eq(asyncTasks.id, staleTask.id));
+        expect(reloaded.status).toBe(AsyncTaskStatus.Error);
+      });
+
+      it('leaves a fresh Pending task untouched', async () => {
+        const [createdBatch] = await serverDB
+          .insert(generationBatches)
+          .values({ ...testBatch, userId })
+          .returning();
+
+        const [freshTask] = await serverDB
+          .insert(asyncTasks)
+          .values({
+            createdAt: new Date(),
+            status: AsyncTaskStatus.Pending,
+            type: AsyncTaskType.ImageGeneration,
+            userId,
+          })
+          .returning();
+
+        await serverDB.insert(generations).values({
+          ...testGeneration,
+          asyncTaskId: freshTask.id,
+          generationBatchId: createdBatch.id,
+          id: 'fresh-gen',
+        });
+
+        await generationBatchModel.queryGenerationBatchesByTopicIdWithGenerations(testTopic.id);
+
+        const call = mockTransformGeneration.mock.calls.find(([gen]) => gen.id === 'fresh-gen');
+        expect(call?.[0].asyncTask).toMatchObject({ status: AsyncTaskStatus.Pending });
+
+        const [reloaded] = await serverDB
+          .select()
+          .from(asyncTasks)
+          .where(eq(asyncTasks.id, freshTask.id));
+        expect(reloaded.status).toBe(AsyncTaskStatus.Pending);
+      });
+
+      it('leaves a stale but already-terminal task untouched', async () => {
+        const [createdBatch] = await serverDB
+          .insert(generationBatches)
+          .values({ ...testBatch, userId })
+          .returning();
+
+        const staleCreatedAt = new Date(Date.now() - ASYNC_TASK_TIMEOUT - 60_000);
+        const [successTask] = await serverDB
+          .insert(asyncTasks)
+          .values({
+            createdAt: staleCreatedAt,
+            status: AsyncTaskStatus.Success,
+            type: AsyncTaskType.ImageGeneration,
+            userId,
+          })
+          .returning();
+
+        await serverDB.insert(generations).values({
+          ...testGeneration,
+          asyncTaskId: successTask.id,
+          generationBatchId: createdBatch.id,
+          id: 'done-gen',
+        });
+
+        await generationBatchModel.queryGenerationBatchesByTopicIdWithGenerations(testTopic.id);
+
+        const [reloaded] = await serverDB
+          .select()
+          .from(asyncTasks)
+          .where(eq(asyncTasks.id, successTask.id));
+        expect(reloaded.status).toBe(AsyncTaskStatus.Success);
+      });
     });
 
     it('should transform config imageUrls through FileService', async () => {
