@@ -30,6 +30,7 @@ vi.mock('@/server/modules/ModelRuntime', () => ({
 describe('videoBackgroundPolling', () => {
   const mockAsyncTaskModel = {
     update: vi.fn(),
+    updateIfActive: vi.fn().mockResolvedValue(true),
   };
 
   const mockGenerationModel = {
@@ -142,10 +143,41 @@ describe('videoBackgroundPolling', () => {
         FileSource.VideoGeneration,
       );
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith('task-123', {
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith('task-123', {
         duration: expect.any(Number),
         status: AsyncTaskStatus.Success,
       });
+    });
+
+    it('does not throw when the task was already cancelled (guard reports no-op)', async () => {
+      // Regression for terminal-state stickiness: a webhook completion
+      // landing after the user cancelled must not resurrect the task, and
+      // must not crash the poller either.
+      mockAsyncTaskModel.updateIfActive.mockResolvedValue(false);
+
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
+        status: 'success',
+        videoUrl: 'https://example.com/video.mp4',
+      });
+
+      mockVideoService.processVideoForGeneration.mockResolvedValue({
+        coverKey: 'cover-key',
+        duration: 10,
+        fileHash: 'hash',
+        fileSize: 1024,
+        height: 1080,
+        mimeType: 'video/mp4',
+        thumbnailKey: 'thumb-key',
+        videoKey: 'video-key',
+        width: 1920,
+      });
+
+      await expect(processBackgroundVideoPolling(mockDb, mockParams)).resolves.toBeUndefined();
+
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
+        'task-123',
+        expect.objectContaining({ status: AsyncTaskStatus.Success }),
+      );
     });
   });
 
@@ -190,14 +222,29 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, mockParams);
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith('task-123', {
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith('task-123', {
         error: expect.any(AsyncTaskError),
         status: AsyncTaskStatus.Error,
       });
 
-      const errorCall = mockAsyncTaskModel.update.mock.calls[0][1];
+      const errorCall = mockAsyncTaskModel.updateIfActive.mock.calls[0][1];
       expect(errorCall.error).toBeInstanceOf(AsyncTaskError);
       expect(errorCall.error?.name).toBe('ServerError');
+    });
+
+    it('does not throw when the task is already cancelled and the poll then fails', async () => {
+      mockAsyncTaskModel.updateIfActive.mockResolvedValue(false);
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
+        status: 'failed',
+        error: 'Model API error',
+      });
+
+      await expect(processBackgroundVideoPolling(mockDb, mockParams)).resolves.toBeUndefined();
+
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
+        'task-123',
+        expect.objectContaining({ status: AsyncTaskStatus.Error }),
+      );
     });
 
     it('should handle model runtime initialization error', async () => {
@@ -205,7 +252,7 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, mockParams);
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith('task-123', {
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith('task-123', {
         error: expect.any(AsyncTaskError),
         status: AsyncTaskStatus.Error,
       });
@@ -223,7 +270,7 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, mockParams);
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith('task-123', {
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith('task-123', {
         error: expect.any(AsyncTaskError),
         status: AsyncTaskStatus.Error,
       });
@@ -251,7 +298,7 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, mockParams);
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith('task-123', {
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith('task-123', {
         error: expect.any(AsyncTaskError),
         status: AsyncTaskStatus.Error,
       });
@@ -287,7 +334,7 @@ describe('videoBackgroundPolling', () => {
       await pollPromise;
 
       expect(mockModelRuntime.handlePollVideoStatus).toHaveBeenCalledTimes(3);
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
         'task-123',
         expect.objectContaining({ status: AsyncTaskStatus.Success }),
       );
@@ -322,7 +369,7 @@ describe('videoBackgroundPolling', () => {
 
       await processBackgroundVideoPolling(mockDb, { ...mockParams, asyncTaskCreatedAt: startTime });
 
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
         'task-123',
         expect.objectContaining({
           duration: expect.any(Number),
@@ -359,7 +406,7 @@ describe('videoBackgroundPolling', () => {
         expect.anything(),
         expect.anything(),
       );
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
         'task-123',
         expect.objectContaining({ status: AsyncTaskStatus.Success }),
       );
@@ -369,7 +416,7 @@ describe('videoBackgroundPolling', () => {
       mockModelRuntime.handlePollVideoStatus.mockResolvedValue({ status: 'pending' });
 
       expect(await rescueStuckVideoTask(mockDb, mockParams)).toBe(false);
-      expect(mockAsyncTaskModel.update).not.toHaveBeenCalled();
+      expect(mockAsyncTaskModel.updateIfActive).not.toHaveBeenCalled();
       expect(mockGenerationModel.createAssetAndFile).not.toHaveBeenCalled();
     });
 
@@ -380,7 +427,21 @@ describe('videoBackgroundPolling', () => {
       });
 
       expect(await rescueStuckVideoTask(mockDb, mockParams)).toBe(true);
-      expect(mockAsyncTaskModel.update).toHaveBeenCalledWith(
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
+        'task-123',
+        expect.objectContaining({ status: AsyncTaskStatus.Error }),
+      );
+    });
+
+    it('does not throw when a provider failure rescue races an already-cancelled task', async () => {
+      mockAsyncTaskModel.updateIfActive.mockResolvedValue(false);
+      mockModelRuntime.handlePollVideoStatus.mockResolvedValue({
+        error: 'content policy',
+        status: 'failed',
+      });
+
+      await expect(rescueStuckVideoTask(mockDb, mockParams)).resolves.toBe(true);
+      expect(mockAsyncTaskModel.updateIfActive).toHaveBeenCalledWith(
         'task-123',
         expect.objectContaining({ status: AsyncTaskStatus.Error }),
       );

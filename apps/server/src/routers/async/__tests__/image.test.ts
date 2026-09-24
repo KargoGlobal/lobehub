@@ -81,7 +81,11 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
   beforeEach(() => {
     vi.clearAllMocks();
 
-    asyncTaskModelMock = { findById: vi.fn(), update: vi.fn() };
+    asyncTaskModelMock = {
+      findById: vi.fn(),
+      update: vi.fn(),
+      updateIfActive: vi.fn().mockResolvedValue(true),
+    };
     generationBatchModelMock = { findById: vi.fn() };
     generationModelMock = { createAssetAndFile: vi.fn() };
     generationServiceMock = {
@@ -116,8 +120,9 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
     // (c) resolves rather than throwing
     expect(result).toMatchObject({ success: false });
 
-    // (a) task marked Error
-    expect(asyncTaskModelMock.update).toHaveBeenCalledWith(
+    // (a) task marked Error via the guarded conditional update (not the
+    // plain `update`, which would unconditionally overwrite a cancelled task)
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledWith(
       'task-1',
       expect.objectContaining({ status: AsyncTaskStatus.Error }),
     );
@@ -129,6 +134,31 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
         isError: true,
         prechargeResult: { reservationKey: 'brk-1' },
       }),
+    );
+  });
+
+  it('skips the Error write (and does not throw) when the task was already cancelled', async () => {
+    // Regression for terminal-state stickiness: a cancelled task must not be
+    // resurrected/overwritten by a completion handler that finishes later.
+    asyncTaskModelMock.findById.mockResolvedValue({
+      metadata: { precharge: { reservationKey: 'brk-1' } },
+    });
+    asyncTaskModelMock.updateIfActive.mockResolvedValue(false);
+    vi.mocked(resolveBusinessModelMapping).mockRejectedValue(new Error('mapping failed'));
+
+    const caller = imageRouter.createCaller(mockCtx);
+    const result = await caller.createImage(createInput());
+
+    expect(result).toMatchObject({ success: false });
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({ status: AsyncTaskStatus.Error }),
+    );
+    // The plain (unconditional) `update` is only ever used for the initial
+    // Processing transition, never for this terminal Error write.
+    expect(asyncTaskModelMock.update).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: AsyncTaskStatus.Error }),
     );
   });
 

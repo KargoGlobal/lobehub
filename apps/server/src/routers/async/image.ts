@@ -267,10 +267,17 @@ export const imageRouter = router({
           const duration = Date.now() - generationBatch.createdAt.getTime();
 
           log('Updating task status to Success: %s, duration: %dms', taskId, duration);
-          await asyncTaskModel.update(taskId, {
+          // Guarded: if the task was cancelled (or otherwise already
+          // terminal) while this generation was in flight, a plain update
+          // here would silently resurrect it. Only a still-Pending/Processing
+          // task actually transitions.
+          const applied = await asyncTaskModel.updateIfActive(taskId, {
             duration,
             status: AsyncTaskStatus.Success,
           });
+          if (!applied) {
+            log('Task %s is no longer active (likely cancelled); skipping Success write', taskId);
+          }
 
           try {
             await notifyImageCompleted({
@@ -360,12 +367,19 @@ export const imageRouter = router({
           providerContentPolicyMessage,
         });
 
-        await asyncTaskModel.update(taskId, {
+        // Guarded for the same reason as the Success write above: a task
+        // that's already terminal (cancelled, or a Success that raced this
+        // failure) must not be overwritten.
+        const errorApplied = await asyncTaskModel.updateIfActive(taskId, {
           error: new AsyncTaskError(errorType, errorMessage),
           status: AsyncTaskStatus.Error,
         });
 
-        log('Task status updated to Error: %s, errorType: %s', taskId, errorType);
+        if (errorApplied) {
+          log('Task status updated to Error: %s, errorType: %s', taskId, errorType);
+        } else {
+          log('Task %s is no longer active; skipping Error write (%s)', taskId, errorType);
+        }
 
         // Reconcile the pre-submission billing on failure. Wrapped so a billing
         // error never masks the original failure report.
