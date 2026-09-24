@@ -136,9 +136,14 @@ export const generationRouter = router({
    * abort-controller window elapses (see `routers/async/image.ts` /
    * `routers/async/video.ts`); cancel only releases the UI.
    *
-   * A task that already reached a terminal state is left untouched (no-op)
-   * so a cancel click that loses a race with real completion can't clobber
-   * a result that already arrived.
+   * The write goes through `updateIfActive`, a conditional `UPDATE ... WHERE
+   * status IN (Pending, Processing)`, rather than a read-then-write: reading
+   * the status first and branching on it (the previous approach) is a TOCTOU
+   * race against the provider-completion handler, which can finish and mark
+   * the task Success between this request's read and its write, silently
+   * overwriting a real result. If the guard finds the task already terminal
+   * — a real completion won the race, or it was already cancelled — this
+   * reports the current truth instead of overwriting it.
    */
   cancelGeneration: generationProcedure
     .use(withScopedPermission('generation_batch:update'))
@@ -155,21 +160,33 @@ export const generationRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Async task not found' });
       }
 
-      if (
-        asyncTask.status !== AsyncTaskStatus.Pending &&
-        asyncTask.status !== AsyncTaskStatus.Processing
-      ) {
-        return {
-          error: (asyncTask.error as AsyncTaskError) ?? null,
-          generation: null,
-          status: asyncTask.status as AsyncTaskStatus,
-        };
+      const error = new AsyncTaskError(AsyncTaskErrorType.TaskCancelled, 'Generation cancelled');
+      const cancelled = await ctx.asyncTaskModel.updateIfActive(input.asyncTaskId, {
+        error,
+        status: AsyncTaskStatus.Error,
+      });
+
+      if (cancelled) {
+        return { error, generation: null, status: AsyncTaskStatus.Error };
       }
 
-      const error = new AsyncTaskError(AsyncTaskErrorType.TaskCancelled, 'Generation cancelled');
-      await ctx.asyncTaskModel.update(input.asyncTaskId, { error, status: AsyncTaskStatus.Error });
+      // Guard missed: the task reached a terminal state before this write
+      // landed (a real completion won the race, or it was already
+      // cancelled). Report the truth instead of the overwrite we didn't make.
+      const current = (await ctx.asyncTaskModel.findById(input.asyncTaskId)) ?? asyncTask;
+      const result: GetGenerationStatusResult = {
+        error: null,
+        generation: null,
+        status: current.status as AsyncTaskStatus,
+      };
 
-      return { error, generation: null, status: AsyncTaskStatus.Error };
+      if (current.status === AsyncTaskStatus.Success) {
+        result.generation = await ctx.generationModel.findByIdAndTransform(input.generationId);
+      } else if (current.status === AsyncTaskStatus.Error) {
+        result.error = current.error as AsyncTaskError;
+      }
+
+      return result;
     }),
 });
 

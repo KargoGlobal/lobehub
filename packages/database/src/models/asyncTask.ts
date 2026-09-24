@@ -70,6 +70,38 @@ export class AsyncTaskModel {
       .where(and(eq(asyncTasks.id, taskId), this.ownership()));
   }
 
+  /**
+   * Terminal states must be sticky: a provider-completion write (Success or
+   * Error) racing a user's cancel — or a cancel racing a real completion —
+   * must never clobber whichever terminal state landed first. This performs
+   * the read-and-write as a single conditional `UPDATE ... WHERE status IN
+   * (Pending, Processing)`, so Postgres re-checks the predicate against the
+   * latest committed row when two writers contend for the same task: only
+   * the one that finds the task still active applies.
+   *
+   * Returns whether the update actually applied (`false` means the task was
+   * already Success/Error/cancelled — or didn't exist — by the time this ran;
+   * callers should read the current row instead of assuming their write won).
+   */
+  updateIfActive = async (
+    taskId: string,
+    value: Partial<AsyncTaskSelectItem>,
+  ): Promise<boolean> => {
+    const updated = await this.db
+      .update(asyncTasks)
+      .set({ ...value, updatedAt: new Date() })
+      .where(
+        and(
+          eq(asyncTasks.id, taskId),
+          this.ownership(),
+          inArray(asyncTasks.status, [AsyncTaskStatus.Pending, AsyncTaskStatus.Processing]),
+        ),
+      )
+      .returning({ id: asyncTasks.id });
+
+    return updated.length > 0;
+  };
+
   findActiveByType = async (type: AsyncTaskType) => {
     return this.db.query.asyncTasks.findFirst({
       where: and(

@@ -323,6 +323,94 @@ describe('AsyncTaskModel', () => {
     });
   });
 
+  describe('updateIfActive', () => {
+    it('updates a Pending task and reports it applied', async () => {
+      const { id } = await serverDB
+        .insert(asyncTasks)
+        .values({ type: AsyncTaskType.ImageGeneration, status: AsyncTaskStatus.Pending, userId })
+        .returning()
+        .then((res) => res[0]);
+
+      const applied = await asyncTaskModel.updateIfActive(id, { status: AsyncTaskStatus.Success });
+
+      expect(applied).toBe(true);
+      const updated = await serverDB.query.asyncTasks.findFirst({ where: eq(asyncTasks.id, id) });
+      expect(updated?.status).toBe(AsyncTaskStatus.Success);
+    });
+
+    it('updates a Processing task and reports it applied', async () => {
+      const { id } = await serverDB
+        .insert(asyncTasks)
+        .values({ type: AsyncTaskType.ImageGeneration, status: AsyncTaskStatus.Processing, userId })
+        .returning()
+        .then((res) => res[0]);
+
+      const applied = await asyncTaskModel.updateIfActive(id, { status: AsyncTaskStatus.Success });
+
+      expect(applied).toBe(true);
+      const updated = await serverDB.query.asyncTasks.findFirst({ where: eq(asyncTasks.id, id) });
+      expect(updated?.status).toBe(AsyncTaskStatus.Success);
+    });
+
+    it('does not overwrite a task that already reached a terminal state (Success)', async () => {
+      const { id } = await serverDB
+        .insert(asyncTasks)
+        .values({ type: AsyncTaskType.ImageGeneration, status: AsyncTaskStatus.Success, userId })
+        .returning()
+        .then((res) => res[0]);
+
+      const applied = await asyncTaskModel.updateIfActive(id, {
+        error: new AsyncTaskError(AsyncTaskErrorType.TaskCancelled, 'Generation cancelled'),
+        status: AsyncTaskStatus.Error,
+      });
+
+      expect(applied).toBe(false);
+      const untouched = await serverDB.query.asyncTasks.findFirst({
+        where: eq(asyncTasks.id, id),
+      });
+      expect(untouched?.status).toBe(AsyncTaskStatus.Success);
+      expect(untouched?.error).toBeNull();
+    });
+
+    it('does not overwrite a task that already reached a terminal state (Error / cancelled)', async () => {
+      const cancelError = new AsyncTaskError(
+        AsyncTaskErrorType.TaskCancelled,
+        'Generation cancelled',
+      );
+      const { id } = await serverDB
+        .insert(asyncTasks)
+        .values({
+          type: AsyncTaskType.ImageGeneration,
+          status: AsyncTaskStatus.Error,
+          error: cancelError,
+          userId,
+        })
+        .returning()
+        .then((res) => res[0]);
+
+      const applied = await asyncTaskModel.updateIfActive(id, {
+        duration: 12_345,
+        status: AsyncTaskStatus.Success,
+      });
+
+      expect(applied).toBe(false);
+      const untouched = await serverDB.query.asyncTasks.findFirst({
+        where: eq(asyncTasks.id, id),
+      });
+      expect(untouched?.status).toBe(AsyncTaskStatus.Error);
+      expect((untouched?.error as any)?.name).toBe(AsyncTaskErrorType.TaskCancelled);
+      expect(untouched?.duration).toBeNull();
+    });
+
+    it('returns false for a non-existent task', async () => {
+      const applied = await asyncTaskModel.updateIfActive('00000000-0000-0000-0000-000000000000', {
+        status: AsyncTaskStatus.Success,
+      });
+
+      expect(applied).toBe(false);
+    });
+  });
+
   describe('isUserMemoryExtractionCancellationRequested', () => {
     it('should return true when cancellation is requested for current user memory extraction task', async () => {
       const [task] = await serverDB
