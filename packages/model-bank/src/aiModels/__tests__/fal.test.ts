@@ -41,4 +41,42 @@ describe('fal model-bank', () => {
     });
     expect(recraft?.parameters).not.toHaveProperty('imageUrl');
   });
+
+  it('gives GPT Image 2 a landscape-default aspectRatio mapped to its own presets', () => {
+    const gptImage2 = isImageCard('openai/gpt-image-2');
+
+    expect(gptImage2?.parameters).toMatchObject({
+      aspectRatio: {
+        default: '16:9',
+        enum: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+      },
+    });
+  });
+
+  it('gives Nano Banana 2 a landscape-default aspectRatio matching its fal-accepted enum', () => {
+    const nanoBanana2 = isImageCard('fal-ai/nano-banana-2');
+
+    expect(nanoBanana2?.parameters).toMatchObject({
+      aspectRatio: {
+        default: '16:9',
+        enum: [
+          'auto',
+          '1:1',
+          '2:3',
+          '3:2',
+          '3:4',
+          '4:3',
+          '4:5',
+          '5:4',
+          '9:16',
+          '16:9',
+          '21:9',
+          '1:4',
+          '4:1',
+          '1:8',
+          '8:1',
+        ],
+      },
+    });
+  });
 });
