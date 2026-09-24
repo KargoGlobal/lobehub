@@ -28,6 +28,14 @@ export interface GenerationConfigState {
   uploadingImagePreviews: string[];
 
   /**
+   * True while the composer's reference images were attached by the Refine
+   * action on a generated result (as opposed to manual uploads). Refine-attached
+   * references are cleared after the next successful generation; manual uploads
+   * persist. Any manual reference edit resets this to false.
+   */
+  isRefiningFromResult: boolean;
+
+  /**
    * Marks whether the configuration has been initialized (including restoration from memory)
    */
   isInit: boolean;
@@ -45,5 +53,6 @@ export const initialGenerationConfigState: GenerationConfigState = {
   isAspectRatioLocked: false,
   activeAspectRatio: null,
   uploadingImagePreviews: [],
+  isRefiningFromResult: false,
   isInit: false,
 };

@@ -99,6 +99,20 @@ function preserveReusableSettings(
   return normalizeImageInputOnSchemaSwitch(reusableSettings, nextSchema, result);
 }
 
+/**
+ * The refine flag only survives as long as the reference it attached does.
+ * Exported for direct unit testing.
+ */
+export function shouldKeepRefineFlag(
+  wasRefining: boolean,
+  parameters: RuntimeImageGenParams,
+): boolean {
+  const hasReference =
+    Boolean(parameters.imageUrl) ||
+    (Array.isArray(parameters.imageUrls) && parameters.imageUrls.length > 0);
+  return wasRefining && hasReference;
+}
+
 type Setter = StoreSetter<ImageStore>;
 export const createGenerationConfigSlice = (set: Setter, get: () => ImageStore, _api?: unknown) =>
   new GenerationConfigActionImpl(set, get, _api);
@@ -367,6 +381,52 @@ export class GenerationConfigActionImpl {
       (state) => ({ parameters: { ...state.parameters, seed } }),
       false,
       `reuseSeed/${seed}`,
+    );
+  };
+
+  /**
+   * Seeds the composer from a finished generation: the output image becomes
+   * the only reference and the batch prompt is restored for editing. Returns
+   * false (and changes nothing) when the active model accepts no image input.
+   */
+  applyRefineFromGeneration = (sourceUrl: string, batchPrompt: string): boolean => {
+    const { parametersSchema } = this.#get();
+    const supportsImageUrls = Boolean(parametersSchema?.imageUrls);
+    const supportsImageUrl = Boolean(parametersSchema?.imageUrl);
+    if (!supportsImageUrls && !supportsImageUrl) return false;
+
+    this.#set(
+      (state) => ({
+        isRefiningFromResult: true,
+        parameters: {
+          ...state.parameters,
+          prompt: batchPrompt,
+          ...(supportsImageUrls
+            ? { imageUrls: [sourceUrl], ...(supportsImageUrl ? { imageUrl: null } : {}) }
+            : { imageUrl: sourceUrl }),
+        },
+      }),
+      false,
+      'applyRefineFromGeneration',
+    );
+    return true;
+  };
+
+  /** Leaves refine mode and removes the references it attached. */
+  cancelRefine = (): void => {
+    const { parametersSchema } = this.#get();
+
+    this.#set(
+      (state) => ({
+        isRefiningFromResult: false,
+        parameters: {
+          ...state.parameters,
+          ...(parametersSchema?.imageUrl ? { imageUrl: null } : {}),
+          ...(parametersSchema?.imageUrls ? { imageUrls: [] } : {}),
+        },
+      }),
+      false,
+      'cancelRefine',
     );
   };
 

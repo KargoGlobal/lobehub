@@ -15,12 +15,14 @@ const isSupportedParam = (paramName: RuntimeImageGenParamsKeys) => {
     return Boolean(paramName in _parametersSchema);
   };
 };
+const isRefiningFromResult = (s: GenerationConfigState) => s.isRefiningFromResult;
 
 export const imageGenerationConfigSelectors = {
   model,
   provider,
   imageNum,
   isSupportedParam,
+  isRefiningFromResult,
   parameters,
   parametersSchema,
   uploadingImagePreviews,
