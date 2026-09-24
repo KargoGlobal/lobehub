@@ -29,13 +29,7 @@ import {
 } from '@/routes/(main)/(create)/features/GenerationInput';
 import { AspectRatioSelect } from '@/routes/(main)/(create)/image/features/ConfigPanel';
 import Select from '@/routes/(main)/(create)/image/features/ConfigPanel/components/Select';
-import AdVoiceAction from '@/routes/(main)/(create)/video/features/AdVoice';
-import AutoAnimateAction from '@/routes/(main)/(create)/video/features/AutoAnimate';
-import CameraDirectorAction from '@/routes/(main)/(create)/video/features/CameraDirector';
 import VideoModelItem from '@/routes/(main)/(create)/video/features/ConfigPanel/components/ModelSelect/VideoModelItem';
-import FinalCutAction from '@/routes/(main)/(create)/video/features/FinalCut';
-import StoryboardAction from '@/routes/(main)/(create)/video/features/Storyboard';
-import VideoRestyleAction from '@/routes/(main)/(create)/video/features/VideoRestyle';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useUserStore } from '@/store/user';
 import { authSelectors } from '@/store/user/slices/auth/selectors';
@@ -51,6 +45,7 @@ import { generateUniqueSeeds } from '@/utils/number';
 import DurationPopoverContent from './DurationPopoverContent';
 import { resolveVideoModelDeepLink } from './resolveModelDeepLink';
 import PromptTitle from './Title';
+import ToolsMenu from './ToolsMenu';
 import { useVideoReferenceUpload } from './useVideoReferenceUpload';
 
 interface PromptInputProps {
@@ -627,12 +622,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
                   </Flexbox>
                 }
               />
-              <AutoAnimateAction />
-              <CameraDirectorAction />
-              <StoryboardAction />
-              <AdVoiceAction />
-              <VideoRestyleAction />
-              <FinalCutAction />
+              <ToolsMenu />
               <BrandKitAction
                 prompt={value ?? ''}
                 target={'video'}
