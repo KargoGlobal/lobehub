@@ -11,7 +11,7 @@ import {
   toast,
 } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { Mic, Upload } from 'lucide-react';
+import { Mic, Pause, Upload } from 'lucide-react';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -30,6 +30,7 @@ import {
   type AvatarResolution,
   buildAvatarRequest,
   buildMusicRequest,
+  buildPauseTag,
   buildSfxRequest,
   buildSpeechRequest,
   estimateAvatarCost,
@@ -39,6 +40,7 @@ import {
   estimateSpeechSeconds,
   formatUsd,
   getSpeechEngine,
+  insertPauseTag,
   MUSIC_LENGTH_DEFAULT_S,
   MUSIC_LENGTH_MAX_S,
   MUSIC_LENGTH_MIN_S,
@@ -143,11 +145,22 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
 
   // --- speech
   const [script, setScript] = useState('');
+  const [scriptCursor, setScriptCursor] = useState<number | null>(null);
   const [engine, setEngine] = useState<SpeechEngine>('elevenlabs');
   const engineSpec = getSpeechEngine(engine);
   const [voice, setVoice] = useState<string>(engineSpec.voices[0].value);
   const [speed, setSpeed] = useState(1);
   const [speech, setSpeech] = useState<GeneratedAudio | null>(null);
+
+  const trackScriptCursor = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
+    setScriptCursor(e.currentTarget.selectionStart);
+  }, []);
+
+  const insertPause = useCallback(() => {
+    const next = insertPauseTag(script, scriptCursor);
+    setScript(next.text);
+    setScriptCursor(next.cursor);
+  }, [script, scriptCursor]);
 
   // --- music
   const [musicBrief, setMusicBrief] = useState('');
@@ -317,15 +330,29 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
                 placeholder={t('adVoice.speech.scriptPlaceholder')}
                 value={script}
                 onChange={(e) => setScript(e.target.value)}
+                onClick={trackScriptCursor}
+                onKeyUp={trackScriptCursor}
+                onSelect={trackScriptCursor}
               />
               <Flexbox horizontal align={'center'} justify={'space-between'}>
-                <span className={styles.cost}>
-                  {t('adVoice.speech.estimate', {
-                    chars: String(script.length),
-                    cost: formatUsd(speechCost),
-                    seconds: String(speechSeconds),
-                  })}
-                </span>
+                <Flexbox horizontal align={'center'} gap={8}>
+                  <span className={styles.cost}>
+                    {t('adVoice.speech.estimate', {
+                      chars: String(script.length),
+                      cost: formatUsd(speechCost),
+                      seconds: String(speechSeconds),
+                    })}
+                  </span>
+                  <Button
+                    data-testid={'advoice-insert-pause'}
+                    icon={<Pause size={12} />}
+                    size={'small'}
+                    type={'text'}
+                    onClick={insertPause}
+                  >
+                    {t('adVoice.speech.insertPause')}
+                  </Button>
+                </Flexbox>
                 {activeKit?.toneOfVoice && (
                   <Button
                     size={'small'}
@@ -336,6 +363,14 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
                   </Button>
                 )}
               </Flexbox>
+              <span className={styles.cost}>
+                {t(
+                  engine === 'minimax'
+                    ? 'adVoice.speech.pauseHintMinimax'
+                    : 'adVoice.speech.pauseHintElevenlabs',
+                  { tag: buildPauseTag() },
+                )}
+              </span>
             </Field>
             <Flexbox horizontal gap={12} style={{ flexWrap: 'wrap' }}>
               <Field label={t('adVoice.speech.engine')}>
@@ -603,18 +638,39 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
   );
 });
 
-/** Toolbar entry point for the video workspace. */
-const AdVoiceAction = memo(() => {
-  const { t } = useTranslation('video');
-  const [open, setOpen] = useState(false);
+interface AdVoiceActionProps {
+  /** Controlled open state (used by the Tools menu); uncontrolled by default. */
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+  /** Render the bare toolbar icon trigger. Set false when a menu opens this tool instead. @default true */
+  renderTrigger?: boolean;
+}
 
-  return (
-    <>
-      <Action icon={Mic} title={t('adVoice.title')} onClick={() => setOpen(true)} />
-      {open && <AdVoiceModal open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-});
+/** Toolbar entry point for the video workspace. */
+const AdVoiceAction = memo<AdVoiceActionProps>(
+  ({ open: openProp, onOpenChange, renderTrigger = true }) => {
+    const { t } = useTranslation('video');
+    const [internalOpen, setInternalOpen] = useState(false);
+
+    const open = openProp ?? internalOpen;
+    const setOpen = useCallback(
+      (next: boolean) => {
+        setInternalOpen(next);
+        onOpenChange?.(next);
+      },
+      [onOpenChange],
+    );
+
+    return (
+      <>
+        {renderTrigger && (
+          <Action icon={Mic} title={t('adVoice.title')} onClick={() => setOpen(true)} />
+        )}
+        {open && <AdVoiceModal open={open} onClose={() => setOpen(false)} />}
+      </>
+    );
+  },
+);
 
 AdVoiceAction.displayName = 'AdVoiceAction';
 

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildAvatarRequest,
   buildMusicRequest,
+  buildPauseTag,
   buildSfxRequest,
   buildSpeechRequest,
   estimateAvatarCost,
@@ -10,6 +11,7 @@ import {
   estimateSpeechCost,
   estimateSpeechSeconds,
   formatUsd,
+  insertPauseTag,
   isSyntheticPerformerBatch,
   SPEECH_ENGINES,
 } from './voice';
@@ -48,6 +50,29 @@ describe('speech', () => {
 
   it('every engine lists at least one voice', () => {
     for (const e of SPEECH_ENGINES) expect(e.voices.length).toBeGreaterThan(0);
+  });
+});
+
+describe('pause markup', () => {
+  it('builds a 1s break tag by default', () => {
+    expect(buildPauseTag()).toBe('<break time="1s" />');
+    expect(buildPauseTag(2.5)).toBe('<break time="2.5s" />');
+  });
+
+  it('inserts the tag at the given cursor position', () => {
+    const result = insertPauseTag('Hello world', 5);
+    expect(result.text).toBe('Hello<break time="1s" /> world');
+    expect(result.cursor).toBe(5 + buildPauseTag().length);
+  });
+
+  it('inserts at the end when the cursor is unknown', () => {
+    const result = insertPauseTag('Hello', null);
+    expect(result.text).toBe(`Hello${buildPauseTag()}`);
+  });
+
+  it('clamps an out-of-range cursor into the text bounds', () => {
+    expect(insertPauseTag('Hi', -5).text).toBe(`${buildPauseTag()}Hi`);
+    expect(insertPauseTag('Hi', 999).text).toBe(`Hi${buildPauseTag()}`);
   });
 });
 
