@@ -12,6 +12,7 @@ export interface ActionButtonsProps {
   onCopySeed?: () => void;
   onDelete: () => void;
   onDownload?: () => void;
+  onRefine?: () => void;
   onRemoveBackground?: () => void;
   onSendToVideo?: () => void;
   onUpscale?: () => void;
@@ -31,6 +32,7 @@ export interface SuccessStateProps {
   onCopySeed?: () => void;
   onDelete: () => void;
   onDownload: () => void;
+  onRefine?: () => void;
   onRemoveBackground: () => void;
   onSendToVideo: () => void;
   onUpscale: () => void;

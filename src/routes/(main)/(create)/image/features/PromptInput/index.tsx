@@ -2,7 +2,7 @@
 
 import { ModelIcon } from '@lobehub/icons';
 import { Flexbox } from '@lobehub/ui';
-import { ActionIcon, Switch, Tabs, Text } from '@lobehub/ui/base-ui';
+import { ActionIcon, Button, Switch, Tabs, Text } from '@lobehub/ui/base-ui';
 import { Divider } from 'antd';
 import { Images } from 'lucide-react';
 import { memo, useEffect, useRef } from 'react';
@@ -176,6 +176,8 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const isSupportPromptExtend = useImageStore(isSupportedParamSelector('promptExtend'));
   const isSupportWatermark = useImageStore(isSupportedParamSelector('watermark'));
   const isSupportWebSearch = useImageStore(isSupportedParamSelector('webSearch'));
+  const isRefining = useImageStore(imageGenerationConfigSelectors.isRefiningFromResult);
+  const cancelRefine = useImageStore((s) => s.cancelRefine);
   const isLogin = useUserStore(authSelectors.isLogin);
   const enabledImageModelList = useAiInfraStore(aiProviderSelectors.enabledImageModelList);
   const isModelConfigReady = useAiInfraStore((s) =>
@@ -293,15 +295,27 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
         value={value}
         inlineContent={
           showInlineRef ? (
-            <InlineImageReference
-              images={imagePreviewUrls}
-              maxCount={maxCount}
-              maxFileSize={maxFileSize}
-              uploadingPreviews={uploadingPreviews}
-              onAdd={handleAddImage}
-              onRemove={handleRemoveImage}
-              onUploadFiles={handleUploadFiles}
-            />
+            <Flexbox gap={4}>
+              {isRefining && (
+                <Flexbox horizontal align={'center'} gap={8} padding={'0 4px'}>
+                  <Text fontSize={12} type={'secondary'}>
+                    {t('config.refine.active')}
+                  </Text>
+                  <Button size={'small'} type={'text'} onClick={cancelRefine}>
+                    {t('config.refine.clear')}
+                  </Button>
+                </Flexbox>
+              )}
+              <InlineImageReference
+                images={imagePreviewUrls}
+                maxCount={maxCount}
+                maxFileSize={maxFileSize}
+                uploadingPreviews={uploadingPreviews}
+                onAdd={handleAddImage}
+                onRemove={handleRemoveImage}
+                onUploadFiles={handleUploadFiles}
+              />
+            </Flexbox>
           ) : undefined
         }
         leftActions={

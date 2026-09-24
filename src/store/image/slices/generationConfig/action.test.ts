@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useImageStore } from '@/store/image';
 
+import { shouldKeepRefineFlag } from './action';
+
 const localStorageMock = vi.hoisted(() => {
   let store: Record<string, string> = {};
   const storage = {
@@ -711,6 +713,159 @@ describe('GenerationConfigAction', () => {
 
       expect(result.current.isInit).toBe(true);
       expect(result.current.imageNum).toBe(4);
+    });
+  });
+
+  describe('applyRefineFromGeneration', () => {
+    it('attaches the output as the only reference and restores the prompt', () => {
+      useImageStore.setState({
+        isRefiningFromResult: false,
+        parameters: { prompt: '', imageUrls: ['https://old.example/ref.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      let ok = false;
+      act(() => {
+        ok = useImageStore
+          .getState()
+          .applyRefineFromGeneration('https://cdn.example/out.png', 'a red apple');
+      });
+
+      const state = useImageStore.getState();
+      expect(ok).toBe(true);
+      expect(state.parameters?.imageUrls).toEqual(['https://cdn.example/out.png']);
+      expect(state.parameters?.prompt).toBe('a red apple');
+      expect(state.isRefiningFromResult).toBe(true);
+    });
+
+    it('uses imageUrl when the model only supports the single-image param', () => {
+      useImageStore.setState({
+        isRefiningFromResult: false,
+        parameters: { prompt: '' },
+        parametersSchema: {
+          imageUrl: { default: null },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().applyRefineFromGeneration('https://cdn.example/out.png', 'p');
+      });
+
+      const state = useImageStore.getState();
+      expect(state.parameters?.imageUrl).toBe('https://cdn.example/out.png');
+      expect(state.isRefiningFromResult).toBe(true);
+    });
+
+    it('returns false and changes nothing when the model takes no image input', () => {
+      useImageStore.setState({
+        isRefiningFromResult: false,
+        parameters: { prompt: 'keep me' },
+        parametersSchema: { prompt: { default: '' } } as any,
+      });
+
+      let ok = true;
+      act(() => {
+        ok = useImageStore.getState().applyRefineFromGeneration('https://cdn.example/out.png', 'p');
+      });
+
+      const state = useImageStore.getState();
+      expect(ok).toBe(false);
+      expect(state.parameters?.prompt).toBe('keep me');
+      expect(state.isRefiningFromResult).toBe(false);
+    });
+  });
+
+  describe('cancelRefine', () => {
+    it('drops refine mode and the attached references', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: 'tweak it', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().cancelRefine();
+      });
+
+      const state = useImageStore.getState();
+      expect(state.isRefiningFromResult).toBe(false);
+      expect(state.parameters?.imageUrls).toEqual([]);
+      expect(state.parameters?.prompt).toBe('tweak it');
+    });
+  });
+
+  describe('shouldKeepRefineFlag', () => {
+    it('keeps the flag only while a reference survives', () => {
+      expect(shouldKeepRefineFlag(true, { imageUrls: ['a'], prompt: '' } as any)).toBe(true);
+      expect(shouldKeepRefineFlag(true, { imageUrl: 'a', prompt: '' } as any)).toBe(true);
+      expect(shouldKeepRefineFlag(true, { imageUrls: [], prompt: '' } as any)).toBe(false);
+      expect(shouldKeepRefineFlag(false, { imageUrls: ['a'], prompt: '' } as any)).toBe(false);
+    });
+  });
+
+  describe('refine flag resets', () => {
+    it('setParamOnInput on a reference param leaves refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: '', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().setParamOnInput('imageUrls', ['https://user.example/mine.png']);
+      });
+
+      const state = useImageStore.getState();
+      expect(state.isRefiningFromResult).toBe(false);
+      expect(state.parameters?.imageUrls).toEqual(['https://user.example/mine.png']);
+    });
+
+    it('setParamOnInput on a non-reference param keeps refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: '', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      act(() => {
+        useImageStore.getState().setParamOnInput('prompt', 'new words');
+      });
+
+      expect(useImageStore.getState().isRefiningFromResult).toBe(true);
+    });
+
+    it('reuseSettings leaves refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: 'old prompt', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      const customSettings: Partial<RuntimeImageGenParams> = {
+        prompt: 'reused prompt',
+      };
+
+      act(() => {
+        useImageStore.getState().reuseSettings('flux/schnell', 'fal', customSettings);
+      });
+
+      expect(useImageStore.getState().isRefiningFromResult).toBe(false);
     });
   });
 });

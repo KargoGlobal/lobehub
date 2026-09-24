@@ -20,6 +20,7 @@ export const SuccessState = memo<SuccessStateProps>(
     onDelete,
     onDownload,
     onCopySeed,
+    onRefine,
     onRemoveBackground,
     onSendToVideo,
     onUpscale,
@@ -55,6 +56,7 @@ export const SuccessState = memo<SuccessStateProps>(
           onCopySeed={onCopySeed}
           onDelete={onDelete}
           onDownload={onDownload}
+          onRefine={onRefine}
           onRemoveBackground={onRemoveBackground}
           onSendToVideo={onSendToVideo}
           onUpscale={onUpscale}
