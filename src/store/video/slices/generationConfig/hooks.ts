@@ -1,6 +1,8 @@
 import { type RuntimeVideoGenParams, type RuntimeVideoGenParamsKeys } from 'model-bank';
 import { useCallback, useMemo } from 'react';
 
+import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
+
 import { useVideoStore } from '../../store';
 import { videoGenerationConfigSelectors } from './selectors';
 
@@ -51,4 +53,22 @@ export function useVideoGenerationConfigParam<
     value: paramValue as V,
     ...paramConstraints,
   };
+}
+
+/**
+ * The active video model's human-readable name, looked up from the enabled
+ * model list (falls back to the raw id while that list is still loading or
+ * the model has since been removed).
+ */
+export function useVideoModelDisplayName(): string {
+  const modelId = useVideoStore(videoGenerationConfigSelectors.model);
+  const providerId = useVideoStore(videoGenerationConfigSelectors.provider);
+  const enabledVideoModelList = useAiInfraStore(aiProviderSelectors.enabledVideoModelList);
+
+  return useMemo(() => {
+    const providerGroup = enabledVideoModelList.find((p) => p.id === providerId);
+    const model = providerGroup?.children.find((m) => m.id === modelId) as
+      { displayName?: string } | undefined;
+    return model?.displayName ?? modelId;
+  }, [enabledVideoModelList, providerId, modelId]);
 }

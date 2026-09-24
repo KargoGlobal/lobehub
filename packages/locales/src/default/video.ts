@@ -69,11 +69,17 @@ export default {
   'cameraDirector.title': 'Camera Director',
   'config.aspectRatio.label': 'Aspect Ratio',
   'config.cameraFixed.label': 'Fixed Camera',
+  'config.duration.ceiling':
+    '15s is the single-shot max today. Need something longer? Stitch clips together in Final Cut.',
   'config.duration.label': 'Duration',
+  'config.duration.longerCutHint': 'Need {{min}} to {{max}}s? {{model}} supports it',
+  'config.duration.longerCutSwitch': 'Switch',
+  'config.duration.supportedRange': '{{model}} supports {{min}} to {{max}}s',
   'config.endImageUrl.label': 'End Frame',
   'config.generateAudio.label': 'Generate Audio',
   'config.header.title': 'Video',
   'config.imageUpload.maxCountReached': 'You can add up to {{count}} reference images',
+  'config.imageUpload.notSupported': '{{model}} doesn’t accept a reference image',
   'config.imageUrl.label': 'Start Frame',
   'config.promptExtend.label': 'Prompt Extend',
   'config.prompt.placeholder': 'Describe the video you want to generate',
@@ -114,12 +120,16 @@ export default {
   'generation.actions.errorCopied': 'Error Message Copied to Clipboard',
   'generation.actions.errorCopyFailed': 'Failed to Copy Error Message',
   'generation.actions.generate': 'Generate',
+  'generation.error.deepLinkImageUnavailable':
+    "Couldn't attach your reference image: {{model}} isn't available, and the current model doesn't accept one either.",
   'generation.freeQuota.exhausted': '🎁 Free quota used up, credits will be consumed',
   'generation.freeQuota.remaining': '🎁 {{remaining}} free videos today',
-  'generation.validation.endFrameRequiresStartFrame':
-    'End frame cannot be used without a start frame. Please set a start frame first.',
+  'generation.notice.referenceImageHeld':
+    '{{model}} ignores reference images; your image is kept for when you switch back.',
   'generation.status.failed': 'Generation Failed',
   'generation.status.generating': 'Generating...',
+  'generation.validation.endFrameRequiresStartFrame':
+    'End frame cannot be used without a start frame. Please set a start frame first.',
   'notice.modelRemoved':
     'The current model is no longer available from {{name}}. Please switch to an available model.',
   'notice.providerDisabled':

@@ -1,3 +1,4 @@
+import { toast } from '@lobehub/ui/base-ui';
 import { act, renderHook } from '@testing-library/react';
 import {
   type AIVideoModelCard,
@@ -8,6 +9,15 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { useVideoStore } from '@/store/video';
+
+vi.mock('@lobehub/ui/base-ui', () => ({
+  toast: { warning: vi.fn() },
+}));
+
+vi.mock('i18next', () => ({
+  t: (key: string, options?: Record<string, unknown>) =>
+    `${key}${options ? `:${JSON.stringify(options)}` : ''}`,
+}));
 
 const modelASchema: VideoModelParamsSchema = {
   prompt: { default: '' },
@@ -34,6 +44,13 @@ const minimaxH3Schema: VideoModelParamsSchema = {
   imageUrl: { default: null },
   imageUrls: { default: [], maxCount: 7 },
   endImageUrl: { default: null },
+};
+
+// A text-only schema with no image param at all (e.g. Veo before it was wired,
+// or any future text-to-video-only endpoint).
+const textOnlySchema: VideoModelParamsSchema = {
+  prompt: { default: '' },
+  duration: { default: 8, enum: [4, 6, 8] },
 };
 
 const testVideoModels: AIVideoModelCard[] = [
@@ -65,13 +82,20 @@ const testVideoModels: AIVideoModelCard[] = [
     parameters: minimaxH3Schema,
     releasedAt: '2026-07-31',
   },
+  {
+    id: 'text-only-model',
+    displayName: 'Text Only Model',
+    type: 'video',
+    parameters: textOnlySchema,
+    releasedAt: '2026-09-01',
+  },
 ];
 
 const mockProviders = [
   {
     id: 'provider-a',
     name: 'Provider A',
-    children: [testVideoModels[0], testVideoModels[2]],
+    children: [testVideoModels[0], testVideoModels[2], testVideoModels[4]],
   },
   {
     id: 'provider-b',
@@ -103,6 +127,7 @@ beforeEach(() => {
       endImageUrl: 'end-frame.png',
       duration: 6,
     } as RuntimeVideoGenParams,
+    heldReferenceImage: null,
   });
 });
 
@@ -184,5 +209,78 @@ describe('uploading image previews', () => {
       result.current.removeUploadingImagePreviews(['blob:a', 'blob:c']);
     });
     expect(result.current.uploadingImagePreviews).toEqual(['blob:b']);
+  });
+});
+
+describe('reference image holding slot', () => {
+  it('holds an uploaded frame and shows a notice when switching to a model with no image support', () => {
+    const { result } = renderHook(() => useVideoStore());
+
+    act(() => {
+      result.current.setModelAndProviderOnSelect('text-only-model', 'provider-a');
+    });
+
+    expect(result.current.parameters?.imageUrl).toBeUndefined();
+    expect(result.current.heldReferenceImage).toBe('start-frame.png');
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+    expect((toast.warning as any).mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        description: expect.stringContaining('Text Only Model'),
+      }),
+    );
+  });
+
+  it('restores a held frame when switching back to an image-capable model, without re-notifying', () => {
+    const { result } = renderHook(() => useVideoStore());
+
+    act(() => {
+      result.current.setModelAndProviderOnSelect('text-only-model', 'provider-a');
+    });
+    expect(result.current.heldReferenceImage).toBe('start-frame.png');
+
+    act(() => {
+      result.current.setModelAndProviderOnSelect('video-model-b', 'provider-b');
+    });
+
+    expect(result.current.parameters?.imageUrl).toBe('start-frame.png');
+    expect(result.current.heldReferenceImage).toBeNull();
+    // Only the hold transition notifies; restoring is a welcome surprise, not a warning.
+    expect(toast.warning).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not clobber a frame already carried over when a hold is pending and the model can take images again', () => {
+    useVideoStore.setState({ heldReferenceImage: 'held.png' });
+
+    const { result } = renderHook(() => useVideoStore());
+
+    act(() => {
+      result.current.setModelAndProviderOnSelect('video-model-b', 'provider-b');
+    });
+
+    // The active frame (already supported going into the switch) wins over the stale hold.
+    expect(result.current.parameters?.imageUrl).toBe('start-frame.png');
+    expect(result.current.heldReferenceImage).toBeNull();
+  });
+
+  it('keeps holding (without renotifying) across successive imageless models', () => {
+    useVideoStore.setState({
+      model: 'text-only-model',
+      provider: 'provider-a',
+      parametersSchema: textOnlySchema,
+      parameters: { prompt: 'x' } as RuntimeVideoGenParams,
+      heldReferenceImage: 'already-held.png',
+    });
+
+    const { result } = renderHook(() => useVideoStore());
+
+    act(() => {
+      // seedance-2-0 only supports imageUrls, still "no imageUrl" for this model, but
+      // DOES support an image param overall, so this exercises restoring into imageUrls.
+      result.current.setModelAndProviderOnSelect('seedance-2-0', 'provider-a');
+    });
+
+    expect(result.current.parameters?.imageUrls).toEqual(['already-held.png']);
+    expect(result.current.heldReferenceImage).toBeNull();
+    expect(toast.warning).not.toHaveBeenCalled();
   });
 });

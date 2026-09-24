@@ -13,7 +13,7 @@ import Action from '@/features/ChatInput/ActionBar/components/Action';
 import { usePermission } from '@/hooks/usePermission';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useVideoStore } from '@/store/video';
-import { createVideoSelectors } from '@/store/video/selectors';
+import { createVideoSelectors, videoGenerationConfigSelectors } from '@/store/video/selectors';
 import { useVideoGenerationConfigParam } from '@/store/video/slices/generationConfig/hooks';
 import { generateUniqueSeeds } from '@/utils/number';
 
@@ -253,6 +253,9 @@ const StoryboardModal = memo<StoryboardModalProps>(({ open, onClose }) => {
   const { t } = useTranslation('video');
   const { allowed: canCreate } = usePermission('create_content');
   const { value: imageUrl } = useVideoGenerationConfigParam('imageUrl');
+  const isSupportImageUrl = useVideoStore(
+    videoGenerationConfigSelectors.isSupportedParam('imageUrl'),
+  );
   const createVideosFromRequests = useVideoStore((s) => s.createVideosFromRequests);
   const isCreating = useVideoStore(createVideoSelectors.isCreating);
   const { activeKit } = useBrandKits();
@@ -482,7 +485,9 @@ const StoryboardModal = memo<StoryboardModalProps>(({ open, onClose }) => {
                 />
               </Field>
             )}
-            {!hasStartFrame && <span className={styles.label}>{t('storyboard.noPhoto')}</span>}
+            {!hasStartFrame && isSupportImageUrl && (
+              <span className={styles.label}>{t('storyboard.noPhoto')}</span>
+            )}
             {hasStartFrame && <span className={styles.label}>{t('storyboard.usingPhoto')}</span>}
 
             <Flexbox horizontal align={'center'} justify={'space-between'}>

@@ -170,4 +170,32 @@ describe('StoryboardAction', () => {
     expect(generate).toBeDisabled();
     expect(createVideosFromRequests).not.toHaveBeenCalled();
   });
+
+  it('hides the "attach a product photo" hint when the active model has no image slot', async () => {
+    // Storyboard always generates against its own fixed H3 Max models, but the
+    // hint reads the *active* (composer) model's image support — a text-only
+    // active model (e.g. Veo) can't receive an uploaded frame via the
+    // composer, so the "attach first" call-to-action must not show.
+    const textOnlySchema: VideoModelParamsSchema = {
+      duration: { default: 8, enum: [4, 6, 8] },
+      prompt: { default: '' },
+    };
+    infra.falModels = ['minimax/h3-max'];
+    useVideoStore.setState({
+      createVideosFromRequests: createVideosFromRequests as any,
+      isCreating: false,
+      isInit: true,
+      model: 'fal-ai/veo3.1',
+      parameters: extractVideoDefaultValues(textOnlySchema),
+      parametersSchema: textOnlySchema,
+      provider: 'fal',
+    });
+    renderAction();
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN }));
+    await screen.findAllByRole('textbox');
+
+    expect(screen.queryByText(/attach a product photo first/)).toBeNull();
+    expect(screen.queryByText(/storyboard\.noPhoto/)).toBeNull();
+  });
 });

@@ -13,7 +13,7 @@ import Action from '@/features/ChatInput/ActionBar/components/Action';
 import { usePermission } from '@/hooks/usePermission';
 import { aiProviderSelectors, useAiInfraStore } from '@/store/aiInfra';
 import { useVideoStore } from '@/store/video';
-import { createVideoSelectors } from '@/store/video/selectors';
+import { createVideoSelectors, videoGenerationConfigSelectors } from '@/store/video/selectors';
 import { useVideoGenerationConfigParam } from '@/store/video/slices/generationConfig/hooks';
 import { generateUniqueSeeds } from '@/utils/number';
 
@@ -150,6 +150,9 @@ const AutoAnimateModal = memo<AutoAnimateModalProps>(({ open, onClose }) => {
   const { allowed: canCreate } = usePermission('create_content');
   const { value: imageUrl } = useVideoGenerationConfigParam('imageUrl');
   const { value: currentPrompt } = useVideoGenerationConfigParam('prompt');
+  const isSupportImageUrl = useVideoStore(
+    videoGenerationConfigSelectors.isSupportedParam('imageUrl'),
+  );
   const createVideosFromRequests = useVideoStore((s) => s.createVideosFromRequests);
   const isCreating = useVideoStore(createVideoSelectors.isCreating);
   const { activeKit } = useBrandKits();
@@ -221,7 +224,7 @@ const AutoAnimateModal = memo<AutoAnimateModalProps>(({ open, onClose }) => {
   const footer = (
     <Flexbox horizontal align={'center'} gap={8} justify={'space-between'} padding={12}>
       <span className={styles.label}>
-        {imageUrl ? t('autoAnimate.usingPhoto') : t('autoAnimate.noPhoto')}
+        {imageUrl ? t('autoAnimate.usingPhoto') : isSupportImageUrl && t('autoAnimate.noPhoto')}
       </span>
       <Flexbox horizontal gap={8}>
         <Button onClick={onClose}>{t('cameraDirector.cancel')}</Button>

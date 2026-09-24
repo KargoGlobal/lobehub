@@ -11,9 +11,35 @@ import {
 } from '@/routes/(main)/(create)/features/GenerationInput/useReferenceImageUpload';
 import { useVideoStore } from '@/store/video';
 import { videoGenerationConfigSelectors } from '@/store/video/selectors';
-import { useVideoGenerationConfigParam } from '@/store/video/slices/generationConfig/hooks';
+import {
+  useVideoGenerationConfigParam,
+  useVideoModelDisplayName,
+} from '@/store/video/slices/generationConfig/hooks';
 
 const isSupportedParamSelector = videoGenerationConfigSelectors.isSupportedParam;
+
+/**
+ * Picks the honest "can't add a reference" message for a drop that exceeds
+ * capacity. A model that truly takes no reference image at all (`maxCount`
+ * is 0) gets called out by name instead of the nonsensical
+ * "you can add up to 0 reference images".
+ */
+export function resolveReferenceLimitMessage({
+  maxCount,
+  modelDisplayName,
+}: {
+  maxCount: number;
+  modelDisplayName: string;
+}): { key: string; options: Record<string, unknown> } {
+  if (maxCount === 0) {
+    return {
+      key: 'config.imageUpload.notSupported',
+      options: { model: modelDisplayName },
+    };
+  }
+
+  return { key: 'config.imageUpload.maxCountReached', options: { count: maxCount } };
+}
 
 /**
  * Video-page binding for the shared {@link useReferenceImageUpload} core.
@@ -31,6 +57,8 @@ export const useVideoReferenceUpload = () => {
   const isSupportImageUrl = useVideoStore(isSupportedParamSelector('imageUrl'));
   const isSupportImageUrls = useVideoStore(isSupportedParamSelector('imageUrls'));
   const isSupportEndImageUrl = useVideoStore(isSupportedParamSelector('endImageUrl'));
+
+  const modelDisplayName = useVideoModelDisplayName();
 
   const {
     value: imageUrl,
@@ -105,9 +133,10 @@ export const useVideoReferenceUpload = () => {
 
   const onLimitExceeded = useCallback(
     (maxCount: number) => {
-      toast.warning(t('config.imageUpload.maxCountReached', { count: maxCount }));
+      const { key, options } = resolveReferenceLimitMessage({ maxCount, modelDisplayName });
+      toast.warning(t(key, options));
     },
-    [t],
+    [t, modelDisplayName],
   );
 
   const { canDropImage, handleUploadFiles, maxCount, maxFileSize } = useReferenceImageUpload({
