@@ -377,6 +377,7 @@ export class GenerationConfigActionImpl {
         provider,
         parameters,
         parametersSchema,
+        isRefiningFromResult: false,
       }),
       false,
       `reuseSettings/${model}/${provider}`,

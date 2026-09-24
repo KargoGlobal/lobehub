@@ -846,5 +846,26 @@ describe('GenerationConfigAction', () => {
 
       expect(useImageStore.getState().isRefiningFromResult).toBe(true);
     });
+
+    it('reuseSettings leaves refine mode', () => {
+      useImageStore.setState({
+        isRefiningFromResult: true,
+        parameters: { prompt: 'old prompt', imageUrls: ['https://cdn.example/out.png'] },
+        parametersSchema: {
+          imageUrls: { default: [] },
+          prompt: { default: '' },
+        } as any,
+      });
+
+      const customSettings: Partial<RuntimeImageGenParams> = {
+        prompt: 'reused prompt',
+      };
+
+      act(() => {
+        useImageStore.getState().reuseSettings('flux/schnell', 'fal', customSettings);
+      });
+
+      expect(useImageStore.getState().isRefiningFromResult).toBe(false);
+    });
   });
 });
