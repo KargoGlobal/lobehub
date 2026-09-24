@@ -5,7 +5,7 @@ import { AsyncTaskModel } from '@/database/models/asyncTask';
 import { GenerationModel } from '@/database/models/generation';
 import { FileService } from '@/server/services/file';
 import { rescueStuckVideoTask } from '@/server/services/generation/videoBackgroundPolling';
-import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import { AsyncTaskErrorType, AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
 
 import { generationRouter } from '../generation';
 
@@ -338,6 +338,121 @@ describe('generationRouter', () => {
       expect(result).toBeUndefined();
       expect(mockDelete).not.toHaveBeenCalled();
       expect(mockDeleteFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelGeneration', () => {
+    it('marks a Pending task Error with a cancelled reason and stops there (no fal abort)', async () => {
+      const mockAsyncTaskFindById = vi.fn().mockResolvedValue({
+        id: 'task-1',
+        status: AsyncTaskStatus.Pending,
+      });
+      const mockAsyncTaskUpdate = vi.fn().mockResolvedValue(undefined);
+      const mockGenerationFindById = vi
+        .fn()
+        .mockResolvedValue({ id: 'gen-1', userId: 'test-user' });
+
+      vi.mocked(AsyncTaskModel).mockImplementation(
+        () => ({ findById: mockAsyncTaskFindById, update: mockAsyncTaskUpdate }) as any,
+      );
+      vi.mocked(GenerationModel).mockImplementation(
+        () => ({ findById: mockGenerationFindById }) as any,
+      );
+
+      const caller = generationRouter.createCaller(mockCtx);
+      const result = await caller.cancelGeneration({
+        asyncTaskId: 'task-1',
+        generationId: 'gen-1',
+      });
+
+      expect(mockAsyncTaskUpdate).toHaveBeenCalledWith(
+        'task-1',
+        expect.objectContaining({
+          status: AsyncTaskStatus.Error,
+          error: expect.objectContaining({ name: AsyncTaskErrorType.TaskCancelled }),
+        }),
+      );
+      expect(result.status).toBe(AsyncTaskStatus.Error);
+      expect(result.error?.name).toBe(AsyncTaskErrorType.TaskCancelled);
+      expect(result.generation).toBeNull();
+    });
+
+    it('cancels a Processing task the same way as Pending', async () => {
+      const mockAsyncTaskFindById = vi.fn().mockResolvedValue({
+        id: 'task-1',
+        status: AsyncTaskStatus.Processing,
+      });
+      const mockAsyncTaskUpdate = vi.fn().mockResolvedValue(undefined);
+
+      vi.mocked(AsyncTaskModel).mockImplementation(
+        () => ({ findById: mockAsyncTaskFindById, update: mockAsyncTaskUpdate }) as any,
+      );
+      vi.mocked(GenerationModel).mockImplementation(
+        () =>
+          ({ findById: vi.fn().mockResolvedValue({ id: 'gen-1', userId: 'test-user' }) }) as any,
+      );
+
+      const caller = generationRouter.createCaller(mockCtx);
+      const result = await caller.cancelGeneration({
+        asyncTaskId: 'task-1',
+        generationId: 'gen-1',
+      });
+
+      expect(mockAsyncTaskUpdate).toHaveBeenCalledTimes(1);
+      expect(result.status).toBe(AsyncTaskStatus.Error);
+    });
+
+    it('does not clobber a task that already finished', async () => {
+      const mockAsyncTaskFindById = vi.fn().mockResolvedValue({
+        id: 'task-1',
+        status: AsyncTaskStatus.Success,
+      });
+      const mockAsyncTaskUpdate = vi.fn();
+
+      vi.mocked(AsyncTaskModel).mockImplementation(
+        () => ({ findById: mockAsyncTaskFindById, update: mockAsyncTaskUpdate }) as any,
+      );
+      vi.mocked(GenerationModel).mockImplementation(
+        () =>
+          ({ findById: vi.fn().mockResolvedValue({ id: 'gen-1', userId: 'test-user' }) }) as any,
+      );
+
+      const caller = generationRouter.createCaller(mockCtx);
+      const result = await caller.cancelGeneration({
+        asyncTaskId: 'task-1',
+        generationId: 'gen-1',
+      });
+
+      expect(mockAsyncTaskUpdate).not.toHaveBeenCalled();
+      expect(result.status).toBe(AsyncTaskStatus.Success);
+    });
+
+    it('throws NOT_FOUND when the generation does not exist', async () => {
+      vi.mocked(GenerationModel).mockImplementation(
+        () => ({ findById: vi.fn().mockResolvedValue(undefined) }) as any,
+      );
+
+      const caller = generationRouter.createCaller(mockCtx);
+
+      await expect(
+        caller.cancelGeneration({ asyncTaskId: 'task-1', generationId: 'missing-gen' }),
+      ).rejects.toThrow(TRPCError);
+    });
+
+    it('throws NOT_FOUND when the async task does not exist', async () => {
+      vi.mocked(GenerationModel).mockImplementation(
+        () =>
+          ({ findById: vi.fn().mockResolvedValue({ id: 'gen-1', userId: 'test-user' }) }) as any,
+      );
+      vi.mocked(AsyncTaskModel).mockImplementation(
+        () => ({ findById: vi.fn().mockResolvedValue(undefined) }) as any,
+      );
+
+      const caller = generationRouter.createCaller(mockCtx);
+
+      await expect(
+        caller.cancelGeneration({ asyncTaskId: 'missing-task', generationId: 'gen-1' }),
+      ).rejects.toThrow(TRPCError);
     });
   });
 });

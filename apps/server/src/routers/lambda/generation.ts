@@ -9,8 +9,12 @@ import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { FileService } from '@/server/services/file';
 import { rescueStuckVideoTask } from '@/server/services/generation/videoBackgroundPolling';
-import { type AsyncTaskError } from '@/types/asyncTask';
-import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import {
+  AsyncTaskError,
+  AsyncTaskErrorType,
+  AsyncTaskStatus,
+  AsyncTaskType,
+} from '@/types/asyncTask';
 import { type Generation } from '@/types/generation';
 
 import { assertWorkspaceRowManageable } from './_helpers/assertWorkspaceRowManageable';
@@ -122,6 +126,50 @@ export const generationRouter = router({
       }
 
       return result;
+    }),
+
+  /**
+   * Escape hatch for a generation that's taking too long: marks the async
+   * task `Error` with a "cancelled" reason so the client stops polling and
+   * shows a Cancelled state instead of spinning forever. This never touches
+   * the fal job itself — the provider request keeps running until its own
+   * abort-controller window elapses (see `routers/async/image.ts` /
+   * `routers/async/video.ts`); cancel only releases the UI.
+   *
+   * A task that already reached a terminal state is left untouched (no-op)
+   * so a cancel click that loses a race with real completion can't clobber
+   * a result that already arrived.
+   */
+  cancelGeneration: generationProcedure
+    .use(withScopedPermission('generation_batch:update'))
+    .input(z.object({ asyncTaskId: z.string(), generationId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<GetGenerationStatusResult> => {
+      const generation = await ctx.generationModel.findById(input.generationId);
+      if (!generation) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Generation not found' });
+      }
+      assertWorkspaceRowManageable(ctx, generation.userId, 'generation');
+
+      const asyncTask = await ctx.asyncTaskModel.findById(input.asyncTaskId);
+      if (!asyncTask) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Async task not found' });
+      }
+
+      if (
+        asyncTask.status !== AsyncTaskStatus.Pending &&
+        asyncTask.status !== AsyncTaskStatus.Processing
+      ) {
+        return {
+          error: (asyncTask.error as AsyncTaskError) ?? null,
+          generation: null,
+          status: asyncTask.status as AsyncTaskStatus,
+        };
+      }
+
+      const error = new AsyncTaskError(AsyncTaskErrorType.TaskCancelled, 'Generation cancelled');
+      await ctx.asyncTaskModel.update(input.asyncTaskId, { error, status: AsyncTaskStatus.Error });
+
+      return { error, generation: null, status: AsyncTaskStatus.Error };
     }),
 });
 

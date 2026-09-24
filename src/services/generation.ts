@@ -11,6 +11,15 @@ class GenerationService {
   async deleteGeneration(generationId: string) {
     return lambdaClient.generation.deleteGeneration.mutate({ generationId });
   }
+
+  /**
+   * Cancel an in-flight generation: marks its async task Error with a
+   * cancelled reason so polling stops and the batch renders a Cancelled
+   * state. Does not abort the underlying provider job.
+   */
+  async cancelGeneration(generationId: string, asyncTaskId: string) {
+    return lambdaClient.generation.cancelGeneration.mutate({ asyncTaskId, generationId });
+  }
 }
 
 export const generationService = new GenerationService();
