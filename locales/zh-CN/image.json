@@ -58,6 +58,8 @@
   "config.quality.label": "图片质量",
   "config.quality.options.hd": "高清",
   "config.quality.options.standard": "标准",
+  "config.refine.active": "正在微调上一次的结果",
+  "config.refine.clear": "清除",
   "config.resolution.label": "分辨率",
   "config.resolution.options.1K": "1K",
   "config.resolution.options.2K": "2K",

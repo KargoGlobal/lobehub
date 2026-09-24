@@ -103,6 +103,8 @@ export default {
   'config.quality.label': 'Image Quality',
   'config.quality.options.hd': 'High Definition',
   'config.quality.options.standard': 'Standard',
+  'config.refine.active': 'Refining a previous result',
+  'config.refine.clear': 'Clear',
   'config.resolution.label': 'Resolution',
   'config.resolution.options.512': '512px',
   'config.resolution.options.1K': '1K',
