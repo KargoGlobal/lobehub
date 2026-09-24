@@ -4,12 +4,16 @@ import {
   type ModelParamsSchema,
   type RuntimeImageGenParams,
 } from 'model-bank';
-import { fluxSchnellParamsSchema } from 'model-bank';
+import {
+  fluxSchnellParamsSchema,
+  gptImage2FalParamsSchema,
+  nanoBanana2FalParamsSchema,
+} from 'model-bank';
 import { describe, expect, it, vi } from 'vitest';
 
 import { useImageStore } from '@/store/image';
 
-import { useGenerationConfigParam } from './hooks';
+import { useDimensionControl, useGenerationConfigParam } from './hooks';
 
 // Mock external dependencies
 vi.mock('@/store/aiInfra', () => ({
@@ -303,5 +307,47 @@ describe('useGenerationConfigParam', () => {
       // setValue callback for width should remain the same reference
       expect(widthResult.current.setValue).toBe(initialWidthSetValue);
     });
+  });
+});
+
+describe('useDimensionControl', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // Chunk 3: GPT Image 2 and Nano Banana 2 (fal) are the two default image
+  // models; both now carry an `aspectRatio` schema entry so the Configuration
+  // popover's dimension control (and the toolbar's promoted ratio button)
+  // actually render for them instead of the popover being empty.
+  it('should report showDimensionControl true for the GPT Image 2 (fal) default schema', () => {
+    useImageStore.setState({
+      parametersSchema: gptImage2FalParamsSchema,
+      parameters: { prompt: '', aspectRatio: '16:9', imageUrls: [] },
+    });
+
+    const { result } = renderHook(() => useDimensionControl());
+    expect(result.current.showDimensionControl).toBe(true);
+    expect(result.current.aspectRatio).toBe('16:9');
+  });
+
+  it('should report showDimensionControl true for the Nano Banana 2 (fal) default schema', () => {
+    useImageStore.setState({
+      parametersSchema: nanoBanana2FalParamsSchema,
+      parameters: { prompt: '', aspectRatio: '16:9', imageUrls: [] },
+    });
+
+    const { result } = renderHook(() => useDimensionControl());
+    expect(result.current.showDimensionControl).toBe(true);
+    expect(result.current.aspectRatio).toBe('16:9');
+  });
+
+  it('should report showDimensionControl false for a prompt-only schema', () => {
+    useImageStore.setState({
+      parametersSchema: { prompt: { default: '' } },
+      parameters: { prompt: '' },
+    });
+
+    const { result } = renderHook(() => useDimensionControl());
+    expect(result.current.showDimensionControl).toBe(false);
   });
 });
