@@ -3,9 +3,10 @@
 import { BRANDING_PROVIDER } from '@lobechat/business-const';
 import { CREDITS_PER_DOLLAR } from '@lobechat/const/currency';
 import { ModelIcon } from '@lobehub/icons';
-import { Flexbox, Popover } from '@lobehub/ui';
+import { Flexbox, Icon, Popover, Tooltip } from '@lobehub/ui';
 import { Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles, cx } from 'antd-style';
+import { Info } from 'lucide-react';
 import type { AiModelForSelect } from 'model-bank';
 import numeral from 'numeral';
 import { memo, useMemo } from 'react';
@@ -15,6 +16,8 @@ import NewModelBadge from '@/components/ModelSelect/NewModelBadge';
 import { useIsDark } from '@/hooks/useIsDark';
 import { useServerConfigStore } from '@/store/serverConfig';
 import { serverConfigSelectors } from '@/store/serverConfig/selectors';
+
+import { formatEstimatedCostLabel, isMegapixelPricedUnit } from './generationModelPricing';
 
 const POPOVER_MAX_WIDTH = 320;
 
@@ -81,6 +84,7 @@ const GenerationModelItem = memo<GenerationModelItemProps>(
     description,
     pricePerImage,
     pricePerVideo,
+    pricing,
     providerId,
     showPopover = true,
     showBadge = true,
@@ -120,15 +124,21 @@ const GenerationModelItem = memo<GenerationModelItemProps>(
             { amount: numeral(credits).format('0,0') },
           );
         }
-      } else {
-        if (typeof exactUsd === 'number') {
-          return `${numeral(exactUsd).format('$0,0.00[000]')} / ${isVideo ? 'video' : 'image'}`;
-        }
-        if (typeof approxUsd === 'number') {
-          return `~ ${numeral(approxUsd).format('$0,0.00[000]')} / ${isVideo ? 'video' : 'image'}`;
-        }
+        return undefined;
       }
-      return undefined;
+
+      return formatEstimatedCostLabel({
+        approximatePricePerImage,
+        approximatePricePerVideo,
+        isMegapixelPriced: isMegapixelPricedUnit(pricing),
+        priceKind,
+        pricePerImage,
+        pricePerVideo,
+        // formatEstimatedCostLabel builds keys generically (image vs video, flat
+        // vs megapixel), so it takes a loosely-typed translator rather than the
+        // narrow per-namespace literal-key union `useTranslation` returns.
+        t: t as (key: string, options?: Record<string, unknown>) => string,
+      });
     }, [
       showPrice,
       approximatePricePerImage,
@@ -136,10 +146,16 @@ const GenerationModelItem = memo<GenerationModelItemProps>(
       enableBusinessFeatures,
       pricePerImage,
       pricePerVideo,
+      pricing,
       priceKind,
       providerId,
       t,
     ]);
+
+    const priceTooltip = t('GenerationModelItem.estimatedCostTooltip', {
+      defaultValue:
+        "The provider's list price for this generated output, charged to the team account — not a bill to you.",
+    });
 
     const popoverContent = useMemo(() => {
       if (!description && !priceLabel) return null;
@@ -152,13 +168,20 @@ const GenerationModelItem = memo<GenerationModelItemProps>(
             </Text>
           )}
           {priceLabel && (
-            <Text className={cx(styles.priceText, isDarkMode && styles.priceText_dark)}>
-              {priceLabel}
-            </Text>
+            <Flexbox horizontal align={'center'} gap={4}>
+              <Text className={cx(styles.priceText, isDarkMode && styles.priceText_dark)}>
+                {priceLabel}
+              </Text>
+              <Tooltip title={priceTooltip}>
+                <span aria-label={priceTooltip} role={'img'} style={{ display: 'inline-flex' }}>
+                  <Icon icon={Info} size={12} />
+                </span>
+              </Tooltip>
+            </Flexbox>
           )}
         </Flexbox>
       );
-    }, [description, priceLabel, isDarkMode]);
+    }, [description, priceLabel, isDarkMode, priceTooltip]);
 
     const content = (
       <Flexbox horizontal align={'center'} gap={8} style={{ overflow: 'hidden' }}>

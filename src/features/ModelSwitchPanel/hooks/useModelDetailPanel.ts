@@ -50,6 +50,11 @@ interface TextPriceSummary {
 
 const BRANDING_CREDIT_UNIT = 1_000_000;
 const MILLION_SCALE_UNITS = new Set<PricingUnit['unit']>(['millionCharacters', 'millionTokens']);
+// Mirrors packages/model-runtime's resolveImageSinglePrice.ts reference size
+// (a 1024x1024 / 1MP image) used to floor a per-megapixel rate into a display
+// price. Duplicated locally rather than imported: that package is server-only
+// runtime code and shouldn't ship in the client bundle for one constant.
+const DEFAULT_REFERENCE_MP = (1024 * 1024) / 1_000_000;
 
 interface FormatPricingRateOptions {
   isCreditPricing?: boolean;
@@ -330,20 +335,53 @@ export const useModelDetailPanel = ({
   const approximatePriceLabel = useMemo(() => {
     if (!displayPricing || !pricingMode) return null;
     const currency = displayPricing.currency as ModelPriceCurrency | undefined;
-    if (pricingMode === 'image' && typeof displayPricing.approximatePricePerImage === 'number') {
-      const amount = isCreditPricing
-        ? formatBrandingCreditRate(displayPricing.approximatePricePerImage, 'image')
-        : formatPriceByCurrency(displayPricing.approximatePricePerImage, currency);
-      return t(
-        isCreditPricing
-          ? 'ModelSwitchPanel.detail.pricing.credits.perImage'
-          : 'ModelSwitchPanel.detail.pricing.perImage',
-        {
-          amount,
-          defaultValue: isCreditPricing ? '~ {{amount}} credits / image' : '~ ${{amount}} / image',
-        },
-      );
+
+    if (pricingMode === 'image') {
+      // fal's per-megapixel models (FLUX, Imagen, Qwen Image, ...) resolve to an
+      // exact-looking dollar figure computed at a 1MP reference size — real
+      // output usually isn't exactly 1MP, so show it as a floor ("from $x")
+      // instead of a flat, false-precise price.
+      const megapixelUnit = displayPricing.units.find(
+        (unit) =>
+          unit.name === 'imageGeneration' && unit.unit === 'megapixel' && unit.strategy === 'fixed',
+      ) as FixedPricingUnit | undefined;
+
+      if (megapixelUnit) {
+        const referencePrice = megapixelUnit.rate * DEFAULT_REFERENCE_MP;
+        const amount = isCreditPricing
+          ? formatBrandingCreditRate(referencePrice, 'image')
+          : formatPriceByCurrency(referencePrice, currency);
+        return t(
+          isCreditPricing
+            ? 'ModelSwitchPanel.detail.pricing.credits.perImageScales'
+            : 'ModelSwitchPanel.detail.pricing.perImageScales',
+          {
+            amount,
+            defaultValue: isCreditPricing
+              ? 'from {{amount}} credits / image (scales with size)'
+              : 'from ${{amount}} / image (scales with size)',
+          },
+        );
+      }
+
+      if (typeof displayPricing.approximatePricePerImage === 'number') {
+        const amount = isCreditPricing
+          ? formatBrandingCreditRate(displayPricing.approximatePricePerImage, 'image')
+          : formatPriceByCurrency(displayPricing.approximatePricePerImage, currency);
+        return t(
+          isCreditPricing
+            ? 'ModelSwitchPanel.detail.pricing.credits.perImage'
+            : 'ModelSwitchPanel.detail.pricing.perImage',
+          {
+            amount,
+            defaultValue: isCreditPricing
+              ? 'est. provider cost: {{amount}} credits / image'
+              : 'est. provider cost: ${{amount}} / image',
+          },
+        );
+      }
     }
+
     if (pricingMode === 'video' && typeof displayPricing.approximatePricePerVideo === 'number') {
       const amount = isCreditPricing
         ? formatBrandingCreditRate(displayPricing.approximatePricePerVideo)
@@ -354,7 +392,9 @@ export const useModelDetailPanel = ({
           : 'ModelSwitchPanel.detail.pricing.perVideo',
         {
           amount,
-          defaultValue: isCreditPricing ? '~ {{amount}} credits / video' : '~ ${{amount}} / video',
+          defaultValue: isCreditPricing
+            ? 'est. provider cost: {{amount}} credits / video second'
+            : 'est. provider cost: ${{amount}} / video second',
         },
       );
     }

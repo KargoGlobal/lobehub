@@ -194,6 +194,53 @@ describe('useModelDetailPanel', () => {
     expect(result.current.hasAbilities).toBe(true);
   });
 
+  it('labels a flat approximate image price as an estimated provider cost', () => {
+    const flatPricing = {
+      approximatePricePerImage: 0.067,
+      currency: 'USD',
+      units: [],
+    } as unknown as Pricing;
+
+    const { result } = renderModelDetailPanelHook({
+      enabledList: createEnabledList('fal', flatPricing),
+      pricingMode: 'image',
+      provider: 'fal',
+    });
+
+    expect(result.current.approximatePriceLabel).toBe('est. provider cost: $0.067 / image');
+  });
+
+  it('labels a megapixel-priced model as a floor, not a flat number', () => {
+    const megapixelPricing = {
+      currency: 'USD',
+      units: [{ name: 'imageGeneration', rate: 0.025, strategy: 'fixed', unit: 'megapixel' }],
+    } as Pricing;
+
+    const { result } = renderModelDetailPanelHook({
+      enabledList: createEnabledList('fal', megapixelPricing),
+      pricingMode: 'image',
+      provider: 'fal',
+    });
+
+    expect(result.current.approximatePriceLabel).toBe('from $0.02621 / image (scales with size)');
+  });
+
+  it('labels an approximate video price with the video-second suffix', () => {
+    const videoPricing = {
+      approximatePricePerVideo: 0.4,
+      currency: 'USD',
+      units: [],
+    } as unknown as Pricing;
+
+    const { result } = renderModelDetailPanelHook({
+      enabledList: createEnabledList('fal', videoPricing),
+      pricingMode: 'video',
+      provider: 'fal',
+    });
+
+    expect(result.current.approximatePriceLabel).toBe('est. provider cost: $0.40 / video second');
+  });
+
   it('updates expanded detail sections', () => {
     const { result } = renderModelDetailPanelHook();
 

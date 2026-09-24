@@ -1,7 +1,11 @@
+// Pre-existing: this component's declarative expandedKeys/onExpandedChange +
+// itemKey/action/allowExpand usage doesn't map onto the base-ui Accordion's
+// items-array API. Migrating is a separate effort, not part of this change.
+// eslint-disable-next-line no-restricted-imports -- see above
 import { Accordion, AccordionItem, Flexbox, Icon, Tooltip } from '@lobehub/ui';
 import { Tag, Text } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { ArrowDownToDot, ArrowUpFromDot, CircleFadingArrowUp } from 'lucide-react';
+import { ArrowDownToDot, ArrowUpFromDot, CircleFadingArrowUp, Info } from 'lucide-react';
 import type { FC } from 'react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -140,6 +144,11 @@ const ModelDetailPanel: FC<ModelDetailPanelProps> = memo(
       pricingMode,
       provider,
       t,
+    });
+
+    const costTooltip = t('ModelSwitchPanel.detail.pricing.costTooltip', {
+      defaultValue:
+        "The provider's list price for this generated output, charged to the team account — not a bill to you.",
     });
 
     if (!model) return null;
@@ -356,7 +365,9 @@ const ModelDetailPanel: FC<ModelDetailPanelProps> = memo(
                 action={
                   !isPricingExpanded &&
                   (approximatePriceLabel ? (
-                    <span className={styles.actionText}>{approximatePriceLabel}</span>
+                    <Tooltip title={costTooltip}>
+                      <span className={styles.actionText}>{approximatePriceLabel}</span>
+                    </Tooltip>
                   ) : (
                     <Flexbox horizontal align={'center'} className={styles.actionText} gap={8}>
                       {hasCachedInputPricing && (
@@ -401,9 +412,18 @@ const ModelDetailPanel: FC<ModelDetailPanelProps> = memo(
               >
                 <Flexbox gap={8}>
                   {approximatePriceLabel && (
-                    <Flexbox className={styles.row} style={{ fontWeight: 500 }}>
-                      {approximatePriceLabel}
-                    </Flexbox>
+                    <Tooltip title={costTooltip}>
+                      <Flexbox
+                        horizontal
+                        align={'center'}
+                        className={styles.row}
+                        gap={4}
+                        style={{ fontWeight: 500 }}
+                      >
+                        {approximatePriceLabel}
+                        <Icon icon={Info} size={'small'} />
+                      </Flexbox>
+                    </Tooltip>
                   )}
                   {pricingGroups.map(({ group, units }) => (
                     <Flexbox gap={4} key={group}>
