@@ -207,4 +207,42 @@ describe('imageGenerationConfigSelectors', () => {
       );
     });
   });
+
+  describe('hasConfigurableParams', () => {
+    // `merge` deep-merges onto the initial state's own schema (which has
+    // aspectRatio/resolution), so it can't produce a genuinely prompt-only
+    // schema for these cases; spread to replace `parametersSchema` outright.
+    it('should return false for a prompt-only schema (nothing for the Configuration popover to render)', () => {
+      const promptOnlySchema: ModelParamsSchema = {
+        prompt: { default: '' },
+      };
+      const state = { ...initialStore, parametersSchema: promptOnlySchema };
+      expect(imageGenerationConfigSelectors.hasConfigurableParams(state)).toBe(false);
+    });
+
+    it('should return false when only reference-image params are present', () => {
+      const referenceOnlySchema: ModelParamsSchema = {
+        imageUrl: { default: null },
+        imageUrls: { default: [] },
+        prompt: { default: '' },
+      };
+      const state = { ...initialStore, parametersSchema: referenceOnlySchema };
+      expect(imageGenerationConfigSelectors.hasConfigurableParams(state)).toBe(false);
+    });
+
+    it('should return true when the schema has an aspectRatio param', () => {
+      const schema: ModelParamsSchema = {
+        aspectRatio: { default: '16:9', enum: ['1:1', '16:9'] },
+        imageUrls: { default: [] },
+        prompt: { default: '' },
+      };
+      const state = { ...initialStore, parametersSchema: schema };
+      expect(imageGenerationConfigSelectors.hasConfigurableParams(state)).toBe(true);
+    });
+
+    it('should return true for gpt-image-1 (has a size param)', () => {
+      const state = { ...initialStore, parametersSchema: gptImage1Schema };
+      expect(imageGenerationConfigSelectors.hasConfigurableParams(state)).toBe(true);
+    });
+  });
 });

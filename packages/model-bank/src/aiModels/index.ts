@@ -247,7 +247,12 @@ export { default as cohere } from './cohere';
 export { default as cometapi } from './cometapi';
 export { default as comfyui } from './comfyui';
 export { default as deepseek } from './deepseek';
-export { default as fal, fluxSchnellParamsSchema } from './fal';
+export {
+  default as fal,
+  fluxSchnellParamsSchema,
+  gptImage2FalParamsSchema,
+  nanoBanana2FalParamsSchema,
+} from './fal';
 export { default as fireworksai } from './fireworksai';
 export { default as giteeai } from './giteeai';
 export { default as github } from './github';

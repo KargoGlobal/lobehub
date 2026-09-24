@@ -39,6 +39,52 @@ export const qwenEditParamsSchema: ModelParamsSchema = {
   width: { default: 1328, max: 1536, min: 512, step: 1 },
 };
 
+// GPT Image 2 on fal takes `image_size` presets, not a literal ratio string;
+// these 5 ratios map 1:1 onto its non-`auto` presets (verified against the
+// live fal API 2026-09-24: square_hd, landscape_4_3, landscape_16_9,
+// portrait_4_3, portrait_16_9). The runtime converts the ratio to the preset
+// name (packages/model-runtime/src/providers/fal/index.ts).
+export const gptImage2FalParamsSchema: ModelParamsSchema = {
+  aspectRatio: {
+    default: '16:9',
+    enum: ['1:1', '16:9', '9:16', '4:3', '3:4'],
+  },
+  imageUrls: { default: [], maxCount: 10 },
+  prompt: {
+    default: '',
+  },
+};
+
+// Nano Banana 2 on fal accepts `aspect_ratio` directly with these literal
+// ratio strings (verified against the live fal API 2026-09-24, both the
+// text-to-image and /edit endpoints); no runtime conversion needed.
+export const nanoBanana2FalParamsSchema: ModelParamsSchema = {
+  aspectRatio: {
+    default: '16:9',
+    enum: [
+      'auto',
+      '1:1',
+      '2:3',
+      '3:2',
+      '3:4',
+      '4:3',
+      '4:5',
+      '5:4',
+      '9:16',
+      '16:9',
+      '21:9',
+      '1:4',
+      '4:1',
+      '1:8',
+      '8:1',
+    ],
+  },
+  imageUrls: { default: [], maxCount: 10 },
+  prompt: {
+    default: '',
+  },
+};
+
 export const huanyuanImageParamsSchema: ModelParamsSchema = {
   cfg: { default: 7.5, max: 20, min: 1, step: 0.1 },
   prompt: { default: '' },
@@ -65,12 +111,7 @@ const falImageModels: AIImageModelCard[] = [
     enabled: true,
     id: 'openai/gpt-image-2',
     organization: 'OpenAI',
-    parameters: {
-      imageUrls: { default: [], maxCount: 10 },
-      prompt: {
-        default: '',
-      },
-    },
+    parameters: gptImage2FalParamsSchema,
     pricing: {
       units: [{ name: 'imageGeneration', rate: 0.07, strategy: 'fixed', unit: 'image' }],
     },
@@ -83,12 +124,7 @@ const falImageModels: AIImageModelCard[] = [
     displayName: 'Nano Banana 2',
     enabled: true,
     id: 'fal-ai/nano-banana-2',
-    parameters: {
-      imageUrls: { default: [], maxCount: 10 },
-      prompt: {
-        default: '',
-      },
-    },
+    parameters: nanoBanana2FalParamsSchema,
     pricing: {
       units: [{ name: 'imageGeneration', rate: 0.06, strategy: 'fixed', unit: 'image' }],
     },

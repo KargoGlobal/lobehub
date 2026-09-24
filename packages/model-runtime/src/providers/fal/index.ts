@@ -131,6 +131,20 @@ const LIPSYNC_SYNC_MODES = new Set(['cut_off', 'loop', 'bounce', 'silence', 'rem
 const nonEmptyString = (value: unknown): value is string =>
   typeof value === 'string' && value.length > 0;
 
+// GPT Image 2 on fal has no `aspect_ratio` param; it takes `image_size`
+// presets instead. These 5 ratios map 1:1 onto its non-`auto` presets
+// (verified against the live fal API 2026-09-24). The model-bank schema
+// (`gptImage2FalParamsSchema`) only offers these 5 ratios, so the lookup
+// below is always a hit in normal use; an unmapped value is simply dropped
+// rather than sent as an `aspect_ratio` fal would reject.
+const GPT_IMAGE_2_ASPECT_RATIO_TO_IMAGE_SIZE: Record<string, string> = {
+  '1:1': 'square_hd',
+  '3:4': 'portrait_4_3',
+  '4:3': 'landscape_4_3',
+  '9:16': 'portrait_16_9',
+  '16:9': 'landscape_16_9',
+};
+
 export const buildFalAvatarInput = (
   endpoint: string,
   params: Record<string, unknown>,
@@ -333,6 +347,15 @@ export class LobeFalAI implements LobeRuntimeAI {
         })
         .map(([key, value]) => [paramsMap.get(key) ?? key, value]),
     );
+
+    // GPT Image 2 has no `aspect_ratio` param on fal; convert the ratio the
+    // model-bank schema exposes into the `image_size` preset it actually
+    // accepts (see GPT_IMAGE_2_ASPECT_RATIO_TO_IMAGE_SIZE above).
+    if (requestModel === 'openai/gpt-image-2' && typeof userInput.aspect_ratio === 'string') {
+      const imageSize = GPT_IMAGE_2_ASPECT_RATIO_TO_IMAGE_SIZE[userInput.aspect_ratio];
+      if (imageSize) userInput.image_size = imageSize;
+      delete userInput.aspect_ratio;
+    }
 
     if ('width' in userInput && 'height' in userInput) {
       if (userInput.size) {

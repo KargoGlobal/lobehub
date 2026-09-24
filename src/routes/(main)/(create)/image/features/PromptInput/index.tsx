@@ -27,6 +27,7 @@ import {
   useImageGenerationModelNotice,
 } from '@/routes/(main)/(create)/features/GenerationInput';
 import {
+  AspectRatioAction,
   CfgSliderInput,
   DimensionControlGroup,
   ImageNum,
@@ -176,6 +177,7 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   const isSupportPromptExtend = useImageStore(isSupportedParamSelector('promptExtend'));
   const isSupportWatermark = useImageStore(isSupportedParamSelector('watermark'));
   const isSupportWebSearch = useImageStore(isSupportedParamSelector('webSearch'));
+  const hasConfigurableParams = useImageStore(imageGenerationConfigSelectors.hasConfigurableParams);
   const isRefining = useImageStore(imageGenerationConfigSelectors.isRefiningFromResult);
   const cancelRefine = useImageStore((s) => s.cancelRefine);
   const isLogin = useUserStore(authSelectors.isLogin);
@@ -357,60 +359,63 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
                 }}
               />
             </ModelSwitchPanel>
-            <ConfigAction
-              title={t('config.title', { defaultValue: 'Config' })}
-              content={
-                <Flexbox gap={12}>
-                  {isSupportQuality && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.quality.label')}</Text>
-                      <QualitySelect />
-                    </Flexbox>
-                  )}
-                  {isSupportResolution && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.resolution.label')}</Text>
-                      <ResolutionSelect />
-                    </Flexbox>
-                  )}
-                  {isSupportSize && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.size.label')}</Text>
-                      <SizeSelect />
-                    </Flexbox>
-                  )}
-                  {showDimensionControl && <DimensionControlGroup />}
-                  {isSupportSteps && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.steps.label')}</Text>
-                      <StepsSliderInput />
-                    </Flexbox>
-                  )}
-                  {isSupportCfg && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.cfg.label')}</Text>
-                      <CfgSliderInput />
-                    </Flexbox>
-                  )}
-                  {isSupportSeed && (
-                    <Flexbox gap={6}>
-                      <Text fontSize={12}>{t('config.seed.label')}</Text>
-                      <SeedNumberInput />
-                    </Flexbox>
-                  )}
-                  {(isSupportWatermark || isSupportPromptExtend || isSupportWebSearch) && (
-                    <Divider style={{ marginBlock: 4 }} />
-                  )}
-                  {isSupportWatermark && (
-                    <SwitchItem label={t('config.watermark.label')} paramName={'watermark'} />
-                  )}
-                  {isSupportPromptExtend && <PromptExtendItem />}
-                  {isSupportWebSearch && (
-                    <SwitchItem label={t('config.webSearch.label')} paramName={'webSearch'} />
-                  )}
-                </Flexbox>
-              }
-            />
+            {showDimensionControl && <AspectRatioAction />}
+            {hasConfigurableParams && (
+              <ConfigAction
+                title={t('config.title', { defaultValue: 'Config' })}
+                content={
+                  <Flexbox gap={12}>
+                    {isSupportQuality && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.quality.label')}</Text>
+                        <QualitySelect />
+                      </Flexbox>
+                    )}
+                    {isSupportResolution && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.resolution.label')}</Text>
+                        <ResolutionSelect />
+                      </Flexbox>
+                    )}
+                    {isSupportSize && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.size.label')}</Text>
+                        <SizeSelect />
+                      </Flexbox>
+                    )}
+                    {showDimensionControl && <DimensionControlGroup />}
+                    {isSupportSteps && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.steps.label')}</Text>
+                        <StepsSliderInput />
+                      </Flexbox>
+                    )}
+                    {isSupportCfg && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.cfg.label')}</Text>
+                        <CfgSliderInput />
+                      </Flexbox>
+                    )}
+                    {isSupportSeed && (
+                      <Flexbox gap={6}>
+                        <Text fontSize={12}>{t('config.seed.label')}</Text>
+                        <SeedNumberInput />
+                      </Flexbox>
+                    )}
+                    {(isSupportWatermark || isSupportPromptExtend || isSupportWebSearch) && (
+                      <Divider style={{ marginBlock: 4 }} />
+                    )}
+                    {isSupportWatermark && (
+                      <SwitchItem label={t('config.watermark.label')} paramName={'watermark'} />
+                    )}
+                    {isSupportPromptExtend && <PromptExtendItem />}
+                    {isSupportWebSearch && (
+                      <SwitchItem label={t('config.webSearch.label')} paramName={'webSearch'} />
+                    )}
+                  </Flexbox>
+                }
+              />
+            )}
             <Action
               icon={Images}
               title={t('config.imageNum.label')}
