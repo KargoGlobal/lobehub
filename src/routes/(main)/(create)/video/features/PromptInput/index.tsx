@@ -2,7 +2,7 @@
 
 import { ModelIcon } from '@lobehub/icons';
 import { Flexbox, InputNumber } from '@lobehub/ui';
-import { ActionIcon, SliderWithInput, Switch, Tabs, Text } from '@lobehub/ui/base-ui';
+import { ActionIcon, Switch, Tabs, Text, toast } from '@lobehub/ui/base-ui';
 import { Divider } from 'antd';
 import { Clock3, Dices } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react';
@@ -48,6 +48,8 @@ import {
 import { useVideoGenerationConfigParam } from '@/store/video/slices/generationConfig/hooks';
 import { generateUniqueSeeds } from '@/utils/number';
 
+import DurationPopoverContent from './DurationPopoverContent';
+import { resolveVideoModelDeepLink } from './resolveModelDeepLink';
 import PromptTitle from './Title';
 import { useVideoReferenceUpload } from './useVideoReferenceUpload';
 
@@ -132,57 +134,6 @@ const ResolutionItem = memo(() => {
         if (!canCreate) return;
 
         setValue(key as any);
-      }}
-    />
-  );
-});
-
-const DurationItem = memo(() => {
-  const { allowed: canCreate } = usePermission('create_content');
-  const { value, setValue, min, max, step, enumValues } = useVideoGenerationConfigParam('duration');
-
-  const options = useMemo(
-    () =>
-      enumValues && enumValues.length > 0
-        ? enumValues.map((v) => ({
-            disabled: !canCreate,
-            key: String(v),
-            label: String(v),
-          }))
-        : [],
-    [enumValues, canCreate],
-  );
-
-  if (options.length > 0) {
-    return (
-      <Tabs
-        activeKey={String(value ?? min)}
-        items={options}
-        style={{ width: '100%' }}
-        styles={{
-          list: { display: 'flex', width: '100%' },
-          tab: { flex: 1 },
-        }}
-        onChange={(key) => {
-          if (!canCreate) return;
-
-          setValue(Number(key) as any);
-        }}
-      />
-    );
-  }
-
-  return (
-    <SliderWithInput
-      disabled={!canCreate}
-      max={max}
-      min={min}
-      step={step ?? 1}
-      value={value ?? min}
-      onChange={(v) => {
-        if (!canCreate) return;
-
-        setValue(v as any);
       }}
     />
   );
@@ -371,21 +322,46 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
   };
 
   useEffect(() => {
-    if (modelParam && !hasProcessedModel.current && isInit) {
-      const targetModel = modelParam;
+    if (!modelParam || hasProcessedModel.current || !isInit) return;
 
-      for (const providerGroup of enabledVideoModelList) {
-        const found = providerGroup.children.some((m) => m.id === targetModel);
-        if (found) {
-          setModelAndProviderOnSelect(targetModel, providerGroup.id);
-          break;
-        }
-      }
+    const targetModel = modelParam;
+    const result = resolveVideoModelDeepLink({
+      currentModelSupportsImage: isSupportImageUrl,
+      enabledModelList: enabledVideoModelList,
+      hasPendingImage: Boolean(imageUrlParam),
+      targetModelId: targetModel,
+    });
 
-      hasProcessedModel.current = true;
-      setModelParam(null);
+    hasProcessedModel.current = true;
+    setModelParam(null);
+
+    if (result.type === 'switch') {
+      setModelAndProviderOnSelect(targetModel, result.providerId);
+      return;
     }
-  }, [modelParam, isInit, enabledVideoModelList, setModelAndProviderOnSelect, setModelParam]);
+
+    if (result.type === 'error') {
+      // Neither the requested model nor the current one can take the pending
+      // image: drop it too, rather than silently writing it into params the
+      // upcoming request never sends, and say why.
+      hasProcessedImageUrl.current = true;
+      setImageUrlParam(null);
+      toast.error({
+        description: t('generation.error.deepLinkImageUnavailable', { model: targetModel }),
+        duration: 5000,
+      });
+    }
+  }, [
+    modelParam,
+    imageUrlParam,
+    isInit,
+    isSupportImageUrl,
+    enabledVideoModelList,
+    setModelAndProviderOnSelect,
+    setModelParam,
+    setImageUrlParam,
+    t,
+  ]);
 
   // Prefill a starting-frame image from a deep link (e.g. "Send to Video" on a
   // generated image). Waits for `?model=` to settle first so an accompanying
@@ -670,8 +646,8 @@ const PromptInput = ({ showTitle = false }: PromptInputProps) => {
                   icon={Clock3}
                   trigger={'click'}
                   popover={{
-                    content: <DurationItem />,
-                    minWidth: 220,
+                    content: <DurationPopoverContent />,
+                    minWidth: 260,
                     title: t('config.duration.label'),
                   }}
                   title={[t('config.duration.label'), duration ? `${duration}s` : '']
