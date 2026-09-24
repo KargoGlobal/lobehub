@@ -142,4 +142,32 @@ describe('AutoAnimateAction', () => {
     const requests = createVideosFromRequests.mock.calls[0]![0];
     expect(requests).toHaveLength(before - 1);
   });
+
+  it('hides the "attach a product photo" hint when the active model has no image slot', async () => {
+    // AutoAnimate is always driven by its own fixed H3 catalog models, but the
+    // footer hint reads the *active* (composer) model's image support — a
+    // text-only active model (e.g. Veo) can't actually receive an uploaded
+    // frame via the composer, so the "attach first" call-to-action must not show.
+    const textOnlySchema: VideoModelParamsSchema = {
+      duration: { default: 8, enum: [4, 6, 8] },
+      prompt: { default: '' },
+    };
+    infra.falModels = ['minimax/h3-max'];
+    useVideoStore.setState({
+      createVideosFromRequests: createVideosFromRequests as any,
+      isCreating: false,
+      isInit: true,
+      model: 'fal-ai/veo3.1',
+      parameters: extractVideoDefaultValues(textOnlySchema),
+      parametersSchema: textOnlySchema,
+      provider: 'fal',
+    });
+    renderAction();
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN }));
+    await screen.findByPlaceholderText(DESCRIPTION);
+
+    expect(screen.queryByText(/attach a product photo first/)).toBeNull();
+    expect(screen.queryByText(/autoAnimate\.noPhoto/)).toBeNull();
+  });
 });
