@@ -3,68 +3,44 @@
 import { LoadingOutlined } from '@ant-design/icons';
 import { Block, Center } from '@lobehub/ui';
 import { Progress, Spin } from 'antd';
-import { memo, useEffect, useState } from 'react';
+import { memo } from 'react';
 
+import { ActionButtons } from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ActionButtons';
 import { ElapsedTime } from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/ElapsedTime';
+import { RemainingTime } from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/RemainingTime';
+import { styles } from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/styles';
+import { useEstimatedRemainingMs } from '@/routes/(main)/(create)/image/features/GenerationFeed/GenerationItem/useEstimatedRemainingMs';
 import { AsyncTaskStatus } from '@/types/asyncTask';
 import type { Generation } from '@/types/generation';
 
-const DEFAULT_AVG_LATENCY_MS = 180_000;
-
-const getSessionStorageKey = (generationId: string) => `generation_start_time_${generationId}`;
-
-const useEstimatedProgress = (generationId: string, avgLatencyMs: number, isActive: boolean) => {
-  const [progress, setProgress] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!isActive) {
-      setProgress(null);
-      return;
-    }
-
-    const storageKey = getSessionStorageKey(generationId);
-    const startTime = (() => {
-      const stored = sessionStorage.getItem(storageKey);
-      if (stored) return Number(stored);
-
-      const now = Date.now();
-      sessionStorage.setItem(storageKey, now.toString());
-      return now;
-    })();
-
-    const update = () => {
-      const elapsed = Date.now() - startTime;
-      const pct = Math.min(Math.round((elapsed / avgLatencyMs) * 100), 99);
-      setProgress(pct);
-    };
-
-    update();
-    const timer = setInterval(update, 1000);
-
-    return () => clearInterval(timer);
-  }, [isActive, avgLatencyMs, generationId]);
-
-  return progress;
-};
+import { DEFAULT_AVG_LATENCY_MS, useEstimatedProgress } from './useEstimatedProgress';
 
 interface VideoLoadingItemProps {
   aspectRatio?: string;
   avgLatencyMs?: number | null;
   generation: Generation;
+  onCancel: () => void;
+  onDelete: () => void;
 }
 
 const VideoLoadingItem = memo<VideoLoadingItemProps>(
-  ({ generation, aspectRatio, avgLatencyMs }) => {
+  ({ generation, aspectRatio, avgLatencyMs, onCancel, onDelete }) => {
     const latency = avgLatencyMs && avgLatencyMs > 0 ? avgLatencyMs : DEFAULT_AVG_LATENCY_MS;
     const isGenerating =
       generation.task.status === AsyncTaskStatus.Processing ||
       generation.task.status === AsyncTaskStatus.Pending;
 
     const progress = useEstimatedProgress(generation.id, latency, isGenerating);
+    const remainingMs = useEstimatedRemainingMs(generation.id, latency, isGenerating);
+
+    // Below the 99% cap, show "~Ns left" next to the circle; once the circle
+    // maxes out (estimate exceeded), fall back to the count-up like image does.
+    const showRemainingText = progress !== null && progress < 99 && Boolean(remainingMs);
 
     return (
       <Block
         align={'center'}
+        className={styles.placeholderContainer}
         justify={'center'}
         variant={'filled'}
         style={{
@@ -78,8 +54,10 @@ const VideoLoadingItem = memo<VideoLoadingItemProps>(
           ) : (
             <Spin indicator={<LoadingOutlined spin />} />
           )}
+          {showRemainingText && <RemainingTime ms={remainingMs!} />}
           {progress === 99 && <ElapsedTime generationId={generation.id} isActive={isGenerating} />}
         </Center>
+        <ActionButtons onCancel={onCancel} onDelete={onDelete} />
       </Block>
     );
   },

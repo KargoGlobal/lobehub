@@ -361,11 +361,14 @@ export const imageRouter = router({
         console.error('Failed to process async tasks:', e);
         console.error('Failed to process async tasks: %O', e);
 
-        // If overall failure occurs, update all task statuses to failed
+        // If overall failure occurs, update all task statuses to failed.
+        // Guarded (defense in depth): the task rows were already committed by
+        // the transaction above, so in principle another session polling the
+        // same topic could observe them and cancel before this write lands.
         try {
           await Promise.allSettled(
             generationsWithTasks.map(({ asyncTaskId }) =>
-              asyncTaskModel.update(asyncTaskId, {
+              asyncTaskModel.updateIfActive(asyncTaskId, {
                 error: new AsyncTaskError(
                   AsyncTaskErrorType.ServerError,
                   'start async task error: ' + (e instanceof Error ? e.message : 'Unknown error'),

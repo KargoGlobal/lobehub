@@ -14,6 +14,7 @@ import { type GenerationBatch } from '@/types/generation';
 // Mock services and dependencies
 vi.mock('@/services/generation', () => ({
   generationService: {
+    cancelGeneration: vi.fn(),
     deleteGeneration: vi.fn(),
     getGenerationStatus: vi.fn(),
   },
@@ -502,6 +503,89 @@ describe('GenerationBatchAction', () => {
       // When key is null, SWR returns an object with undefined data
       expect(result.current.data).toBeUndefined();
       expect(generationBatchService.getGenerationBatches).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('cancelGeneration', () => {
+    it('persists the cancel then flips the generation to Error, halting polling', async () => {
+      const topicId = 'gt_topic_1';
+      const batchId = 'gb_batch_1';
+      const generationId = 'gen_1';
+      const asyncTaskId = 'task_1';
+
+      const batches: GenerationBatch[] = [
+        {
+          id: batchId,
+          provider: 'openai',
+          model: 'dall-e-3',
+          prompt: 'Test prompt',
+          createdAt: new Date(),
+          generations: [
+            {
+              id: generationId,
+              seed: 12345,
+              createdAt: new Date(),
+              asyncTaskId,
+              task: { id: asyncTaskId, status: AsyncTaskStatus.Processing },
+            },
+          ],
+        },
+      ];
+
+      act(() => {
+        useImageStore.setState({
+          activeGenerationTopicId: topicId,
+          generationBatchesMap: { [topicId]: batches },
+        });
+      });
+
+      vi.mocked(generationService.cancelGeneration).mockResolvedValue({
+        error: { body: { detail: 'Generation cancelled' }, name: 'TaskCancelled' },
+        generation: null,
+        status: AsyncTaskStatus.Error,
+      } as any);
+
+      const { result } = renderHook(() => useImageStore());
+
+      await act(async () => {
+        await result.current.cancelGeneration(generationId, asyncTaskId);
+      });
+
+      expect(generationService.cancelGeneration).toHaveBeenCalledWith(generationId, asyncTaskId);
+
+      const updatedGeneration =
+        useImageStore.getState().generationBatchesMap[topicId][0].generations[0];
+      expect(updatedGeneration.task.status).toBe(AsyncTaskStatus.Error);
+      expect(updatedGeneration.task.error?.name).toBe('TaskCancelled');
+    });
+
+    it('does nothing without an active topic', async () => {
+      const { result } = renderHook(() => useImageStore());
+
+      await act(async () => {
+        await result.current.cancelGeneration('gen_1', 'task_1');
+      });
+
+      expect(generationService.cancelGeneration).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the generation is not found in any batch', async () => {
+      const topicId = 'gt_topic_1';
+
+      act(() => {
+        useImageStore.setState({
+          activeGenerationTopicId: topicId,
+          generationBatchesMap: { [topicId]: [] },
+        });
+      });
+
+      const { result } = renderHook(() => useImageStore());
+
+      await act(async () => {
+        await result.current.cancelGeneration('missing-gen', 'task_1');
+      });
+
+      expect(generationService.cancelGeneration).not.toHaveBeenCalled();
     });
   });
 

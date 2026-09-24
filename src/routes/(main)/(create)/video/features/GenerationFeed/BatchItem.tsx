@@ -52,6 +52,7 @@ interface VideoGenerationBatchItemProps {
 export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ batch }) => {
   const { t } = useTranslation(['video', 'image']);
   const useCheckGenerationStatus = useVideoStore((s) => s.useCheckGenerationStatus);
+  const cancelGeneration = useVideoStore((s) => s.cancelGeneration);
   const removeGeneration = useVideoStore((s) => s.removeGeneration);
   const removeGenerationBatch = useVideoStore((s) => s.removeGenerationBatch);
   const setBatchApprovalStatus = useVideoStore((s) => s.setBatchApprovalStatus);
@@ -101,6 +102,17 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
       console.error('Failed to delete generation:', error);
     }
   }, [removeGeneration, generation?.id]);
+
+  const handleCancel = useCallback(async () => {
+    if (!generation?.id || !generation.task.id) return;
+
+    try {
+      await cancelGeneration(generation.id, generation.task.id);
+    } catch (error) {
+      console.error('Failed to cancel generation:', error);
+      toast.error(t('generation.actions.cancelFailed', { ns: 'image' }));
+    }
+  }, [cancelGeneration, generation?.id, generation?.task.id, t]);
 
   const handleCopyPrompt = useCallback(async () => {
     try {
@@ -245,6 +257,8 @@ export const VideoGenerationBatchItem = memo<VideoGenerationBatchItemProps>(({ b
         aspectRatio={displayAspectRatio}
         avgLatencyMs={batch.avgLatencyMs}
         generation={generation}
+        onCancel={handleCancel}
+        onDelete={handleDelete}
       />
     );
   };

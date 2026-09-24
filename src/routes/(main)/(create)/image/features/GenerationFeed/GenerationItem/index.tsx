@@ -30,6 +30,7 @@ export const GenerationItem = memo<GenerationItemProps>(
     const navigate = useNavigate();
     const useCheckGenerationStatus = useImageStore((s) => s.useCheckGenerationStatus);
     const deleteGeneration = useImageStore((s) => s.removeGeneration);
+    const cancelGeneration = useImageStore((s) => s.cancelGeneration);
     const createUtilityImage = useImageStore((s) => s.createUtilityImage);
     const reuseSeed = useImageStore((s) => s.reuseSeed);
     const activeTopicId = useImageStore((s) => s.activeGenerationTopicId);
@@ -54,6 +55,15 @@ export const GenerationItem = memo<GenerationItemProps>(
         console.error('Failed to delete generation:', error);
       }
     }, [deleteGeneration, generation.id]);
+
+    const handleCancelGeneration = useCallback(async () => {
+      try {
+        await cancelGeneration(generation.id, generation.task.id);
+      } catch (error) {
+        console.error('Failed to cancel generation:', error);
+        toast.error(t('generation.actions.cancelFailed'));
+      }
+    }, [cancelGeneration, generation.id, generation.task.id, t]);
 
     const handleDownloadImage = useCallback(async () => {
       if (!generation.asset?.url) return;
@@ -193,6 +203,7 @@ export const GenerationItem = memo<GenerationItemProps>(
         aspectRatio={aspectRatio}
         generation={generation}
         generationBatch={generationBatch}
+        onCancel={handleCancelGeneration}
         onDelete={handleDeleteGeneration}
       />
     );

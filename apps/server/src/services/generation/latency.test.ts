@@ -14,7 +14,7 @@ vi.mock('@/libs/redis', () => ({
 }));
 
 // Must import after vi.mock declarations
-const { getVideoAvgLatency } = await import('./latency');
+const { getVideoAvgLatency, getGenerationAvgLatency } = await import('./latency');
 const { getServerDB } = await import('@/database/server');
 const { isRedisEnabled, initializeRedis } = await import('@/libs/redis');
 
@@ -185,5 +185,74 @@ describe('getVideoAvgLatency', () => {
 
       expect(result).toBe(90_000);
     });
+  });
+});
+
+describe('getGenerationAvgLatency', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(isRedisEnabled).mockReturnValue(false);
+  });
+
+  it('should return trimmed mean for image tasks, same math as video', async () => {
+    const db = createMockDB([
+      { latency: 10_000 },
+      { latency: 50_000 },
+      { latency: 60_000 },
+      { latency: 70_000 },
+      { latency: 80_000 },
+      { latency: 90_000 },
+      { latency: 100_000 },
+      { latency: 110_000 },
+      { latency: 120_000 },
+      { latency: 500_000 },
+    ]);
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const result = await getGenerationAvgLatency('image', 'gpt-image-2');
+
+    expect(result).toBe(85_000);
+  });
+
+  it('should return null when no image samples exist', async () => {
+    const db = createMockDB([]);
+    vi.mocked(getServerDB).mockResolvedValue(db as any);
+
+    const result = await getGenerationAvgLatency('image', 'gpt-image-2');
+
+    expect(result).toBeNull();
+  });
+
+  it('should use a media-type-scoped cache key so image and video never collide', async () => {
+    const mockRedis = { get: vi.fn().mockResolvedValue('42000'), set: vi.fn() };
+    vi.mocked(isRedisEnabled).mockReturnValue(true);
+    vi.mocked(initializeRedis).mockResolvedValue(mockRedis as any);
+
+    const result = await getGenerationAvgLatency('image', 'gpt-image-2');
+
+    expect(result).toBe(42_000);
+    expect(mockRedis.get).toHaveBeenCalledWith('image:avg_latency:gpt-image-2');
+  });
+
+  it('should route to the video cache key when mediaType is video', async () => {
+    const mockRedis = { get: vi.fn().mockResolvedValue('99000'), set: vi.fn() };
+    vi.mocked(isRedisEnabled).mockReturnValue(true);
+    vi.mocked(initializeRedis).mockResolvedValue(mockRedis as any);
+
+    const result = await getGenerationAvgLatency('video', 'veo-3.1');
+
+    expect(result).toBe(99_000);
+    expect(mockRedis.get).toHaveBeenCalledWith('video:avg_latency:veo-3.1');
+  });
+
+  it('getVideoAvgLatency delegates to getGenerationAvgLatency with mediaType video', async () => {
+    const mockRedis = { get: vi.fn().mockResolvedValue('77000'), set: vi.fn() };
+    vi.mocked(isRedisEnabled).mockReturnValue(true);
+    vi.mocked(initializeRedis).mockResolvedValue(mockRedis as any);
+
+    const result = await getVideoAvgLatency('veo-3.1');
+
+    expect(result).toBe(77_000);
+    expect(mockRedis.get).toHaveBeenCalledWith('video:avg_latency:veo-3.1');
   });
 });

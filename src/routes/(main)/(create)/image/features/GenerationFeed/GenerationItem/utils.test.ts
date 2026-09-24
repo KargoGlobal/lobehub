@@ -5,10 +5,36 @@ import { type Generation, type GenerationBatch } from '@/types/generation';
 // Import functions for testing
 import {
   DEFAULT_MAX_ITEM_WIDTH,
+  formatRemainingTime,
   getAspectRatio,
   getImageDimensions,
   getThumbnailMaxWidth,
 } from './utils';
+
+describe('formatRemainingTime', () => {
+  it('formats sub-minute durations as seconds', () => {
+    expect(formatRemainingTime(45_000)).toBe('45s');
+    expect(formatRemainingTime(1_000)).toBe('1s');
+  });
+
+  it('rounds up so it never reads "0s" while still active', () => {
+    expect(formatRemainingTime(400)).toBe('1s');
+  });
+
+  it('formats minute-plus durations as minutes and seconds', () => {
+    expect(formatRemainingTime(90_000)).toBe('1m 30s');
+    expect(formatRemainingTime(125_000)).toBe('2m 5s');
+  });
+
+  it('omits the seconds part on an exact minute', () => {
+    expect(formatRemainingTime(120_000)).toBe('2m');
+  });
+
+  it('never returns a non-positive duration', () => {
+    expect(formatRemainingTime(0)).toBe('1s');
+    expect(formatRemainingTime(-5_000)).toBe('1s');
+  });
+});
 
 describe('getImageDimensions', () => {
   // Mock base generation object

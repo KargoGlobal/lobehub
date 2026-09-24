@@ -150,6 +150,43 @@ export class GenerationBatchActionImpl {
     await internal_deleteGenerationBatch(batchId, topicId);
   };
 
+  /**
+   * Cancel an in-flight generation. Marks the async task Error server-side
+   * (see `generation.cancelGeneration`), then applies the returned status to
+   * the batch in place — this is what makes `useCheckGenerationStatus` stop
+   * polling (its `enable` flag is derived from the task no longer being
+   * Pending/Processing) and the item render as Cancelled instead of Loading.
+   */
+  cancelGeneration = async (generationId: string, asyncTaskId: string): Promise<void> => {
+    const { activeGenerationTopicId, internal_dispatchGenerationBatch } = this.#get();
+    if (!activeGenerationTopicId) return;
+
+    const currentBatches = this.#get().generationBatchesMap[activeGenerationTopicId] || [];
+    const targetBatch = currentBatches.find((batch) =>
+      batch.generations.some((gen) => gen.id === generationId),
+    );
+    if (!targetBatch) return;
+
+    const result = await generationService.cancelGeneration(generationId, asyncTaskId);
+
+    internal_dispatchGenerationBatch(
+      activeGenerationTopicId,
+      {
+        batchId: targetBatch.id,
+        generationId,
+        type: 'updateGenerationInBatch',
+        value: {
+          task: {
+            error: result.error ?? undefined,
+            id: asyncTaskId,
+            status: result.status,
+          },
+        },
+      },
+      n('cancelGeneration'),
+    );
+  };
+
   setTopicBatchLoaded = (topicId: string): void => {
     const nextMap = {
       ...this.#get().generationBatchesMap,

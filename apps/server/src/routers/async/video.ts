@@ -209,10 +209,18 @@ export const videoRouter = router({
         const duration = Date.now() - asyncTaskCreatedAt.getTime();
 
         log('Updating task status to Success: %s, duration: %dms', asyncTaskId, duration);
-        await asyncTaskModel.update(asyncTaskId, {
+        // Guarded: a cancelled (or otherwise already-terminal) task must not
+        // be resurrected by a completion that lands after the cancel.
+        const applied = await asyncTaskModel.updateIfActive(asyncTaskId, {
           duration,
           status: AsyncTaskStatus.Success,
         });
+        if (!applied) {
+          log(
+            'Task %s is no longer active (likely cancelled); skipping Success write',
+            asyncTaskId,
+          );
+        }
 
         if (ENABLE_BUSINESS_FEATURES && prechargeResult) {
           try {
@@ -281,7 +289,8 @@ export const videoRouter = router({
         userId: ctx.userId,
       });
 
-      await asyncTaskModel.update(asyncTaskId, {
+      // Guarded for the same reason as the Success write above.
+      const errorApplied = await asyncTaskModel.updateIfActive(asyncTaskId, {
         error: new AsyncTaskError(
           providerContentPolicyMessage
             ? AsyncTaskErrorType.ProviderContentModeration
@@ -293,7 +302,11 @@ export const videoRouter = router({
         status: AsyncTaskStatus.Error,
       });
 
-      log('Task status updated to Error: %s', asyncTaskId);
+      if (errorApplied) {
+        log('Task status updated to Error: %s', asyncTaskId);
+      } else {
+        log('Task %s is no longer active; skipping Error write', asyncTaskId);
+      }
 
       if (prechargeResult && ENABLE_BUSINESS_FEATURES) {
         try {

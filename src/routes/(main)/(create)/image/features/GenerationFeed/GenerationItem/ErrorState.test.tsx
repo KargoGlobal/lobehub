@@ -116,4 +116,36 @@ describe('ErrorState', () => {
       screen.queryByText('Content policy check failed. Revise your prompt and try again.'),
     ).toBeNull();
   });
+
+  it('shows a Cancelled state instead of the generic failure copy when the task was cancelled', () => {
+    const generation: Generation = {
+      asyncTaskId: 'task-id',
+      createdAt: new Date(),
+      id: 'generation-id',
+      task: {
+        error: {
+          body: { detail: 'Generation cancelled' },
+          name: AsyncTaskErrorType.TaskCancelled,
+        },
+        id: 'task-id',
+        status: AsyncTaskStatus.Error,
+      },
+    };
+
+    render(
+      <ErrorState
+        aspectRatio="1 / 1"
+        generation={generation}
+        generationBatch={generationBatch}
+        onCopyError={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('generation.status.cancelled')).toBeTruthy();
+    expect(screen.queryByText('generation.status.failed')).toBeNull();
+    // The raw error detail is not meaningful debug info for a user-initiated
+    // cancel, so it's not shown the way a real failure's error text would be.
+    expect(screen.queryByText('Generation cancelled')).toBeNull();
+  });
 });

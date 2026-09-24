@@ -165,6 +165,7 @@
   "generation.freeQuota.exhausted": "🎁 免费额度已用完，将开始消耗积分",
   "generation.freeQuota.remaining": "🎁 今日剩余 {{remaining}} 个免费视频",
   "generation.notice.referenceImageHeld": "{{model}} 不支持参考图，已为你保留，切回支持的模型时会自动恢复。",
+  "generation.status.cancelled": "已取消",
   "generation.status.failed": "生成失败",
   "generation.status.generating": "生成中...",
   "generation.validation.endFrameRequiresStartFrame": "使用结束画面前需先设置起始画面。请先设置起始画面。",

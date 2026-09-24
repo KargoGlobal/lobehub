@@ -71,6 +71,25 @@ describe('ActionButtons', () => {
     expect(screen.queryByRole('button', { name: 'removeBackground' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'upscale' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'sendToVideo' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'cancel' })).toBeNull();
     expect(screen.getByRole('button', { name: 'delete' })).toBeTruthy();
+  });
+
+  it('renders a cancel button only when onCancel is provided, and calls it on click', async () => {
+    const onCancel = vi.fn();
+    const user = userEvent.setup();
+
+    render(<ActionButtons onCancel={onCancel} onDelete={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: 'cancel' }));
+
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('omits the delete button when onDelete is not provided', () => {
+    render(<ActionButtons onCancel={vi.fn()} />);
+
+    expect(screen.queryByRole('button', { name: 'delete' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'cancel' })).toBeTruthy();
   });
 });

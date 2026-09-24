@@ -85,10 +85,16 @@ export async function completeVideoGeneration(
     FileSource.VideoGeneration,
   );
 
-  await asyncTaskModel.update(asyncTaskId, {
+  // Guarded: this fires from a fal webhook or the rescue-on-read path, both
+  // of which can land after the user cancelled the generation. A plain
+  // update would silently resurrect a cancelled task back to Success.
+  const applied = await asyncTaskModel.updateIfActive(asyncTaskId, {
     duration: Date.now() - asyncTaskCreatedAt.getTime(),
     status: AsyncTaskStatus.Success,
   });
+  if (!applied) {
+    log('Task %s is no longer active (likely cancelled); skipping Success write', asyncTaskId);
+  }
 }
 
 export interface RescueStuckVideoTaskParams extends CompleteVideoGenerationParams {
@@ -119,7 +125,9 @@ export async function rescueStuckVideoTask(
 
     if (pollResult.status === 'failed') {
       const asyncTaskModel = new AsyncTaskModel(db, userId, workspaceId);
-      await asyncTaskModel.update(asyncTaskId, {
+      // Guarded for the same reason as the Success write in
+      // completeVideoGeneration — this must not resurrect a cancelled task.
+      await asyncTaskModel.updateIfActive(asyncTaskId, {
         error: new AsyncTaskError(AsyncTaskErrorType.ServerError, pollResult.error),
         status: AsyncTaskStatus.Error,
       });
@@ -203,7 +211,8 @@ export async function processBackgroundVideoPolling(
         log('Failed to track provider content policy violation: %O', trackError);
       }
     }
-    await asyncTaskModel.update(asyncTaskId, {
+    // Guarded for the same reason as the writes above.
+    const applied = await asyncTaskModel.updateIfActive(asyncTaskId, {
       error: new AsyncTaskError(
         providerContentPolicyMessage
           ? AsyncTaskErrorType.ProviderContentModeration
@@ -214,6 +223,9 @@ export async function processBackgroundVideoPolling(
       ),
       status: AsyncTaskStatus.Error,
     });
+    if (!applied) {
+      log('Task %s is no longer active; skipping Error write', asyncTaskId);
+    }
   }
 }
 

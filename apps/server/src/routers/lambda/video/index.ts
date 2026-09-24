@@ -298,7 +298,11 @@ export const videoRouter = router({
           // Webhook-based provider (e.g. Volcengine): wait for callback
           log('Webhook-based provider detected, waiting for callback');
 
-          await asyncTaskModel.update(asyncTaskId, {
+          // Guarded (defense in depth): the provider submission call above is
+          // a real network round trip, so — as with the webhook completion
+          // writes — another session could in principle observe the freshly
+          // committed task and cancel it before this write lands.
+          await asyncTaskModel.updateIfActive(asyncTaskId, {
             inferenceId: response?.inferenceId,
             status: AsyncTaskStatus.Processing,
           });
@@ -306,7 +310,7 @@ export const videoRouter = router({
           // Polling-based provider (e.g. OpenAI Sora): use background polling
           log('Polling-based provider detected (inferenceId only), scheduling background polling');
 
-          await asyncTaskModel.update(asyncTaskId, {
+          await asyncTaskModel.updateIfActive(asyncTaskId, {
             inferenceId: response.inferenceId,
             status: AsyncTaskStatus.Processing,
           });
@@ -348,7 +352,8 @@ export const videoRouter = router({
           trigger: RequestTrigger.Video,
           userId,
         });
-        await asyncTaskModel.update(asyncTaskId, {
+        // Guarded for the same reason as the Processing writes above.
+        await asyncTaskModel.updateIfActive(asyncTaskId, {
           error: createVideoTaskSubmitError(e, providerContentPolicyMessage),
           status: AsyncTaskStatus.Error,
         });

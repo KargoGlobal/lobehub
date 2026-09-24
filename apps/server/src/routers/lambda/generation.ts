@@ -9,8 +9,12 @@ import { router } from '@/libs/trpc/lambda';
 import { serverDatabase } from '@/libs/trpc/lambda/middleware';
 import { FileService } from '@/server/services/file';
 import { rescueStuckVideoTask } from '@/server/services/generation/videoBackgroundPolling';
-import { type AsyncTaskError } from '@/types/asyncTask';
-import { AsyncTaskStatus, AsyncTaskType } from '@/types/asyncTask';
+import {
+  AsyncTaskError,
+  AsyncTaskErrorType,
+  AsyncTaskStatus,
+  AsyncTaskType,
+} from '@/types/asyncTask';
 import { type Generation } from '@/types/generation';
 
 import { assertWorkspaceRowManageable } from './_helpers/assertWorkspaceRowManageable';
@@ -119,6 +123,67 @@ export const generationRouter = router({
         result.generation = generation;
       } else if (asyncTask.status === AsyncTaskStatus.Error) {
         result.error = error as AsyncTaskError;
+      }
+
+      return result;
+    }),
+
+  /**
+   * Escape hatch for a generation that's taking too long: marks the async
+   * task `Error` with a "cancelled" reason so the client stops polling and
+   * shows a Cancelled state instead of spinning forever. This never touches
+   * the fal job itself — the provider request keeps running until its own
+   * abort-controller window elapses (see `routers/async/image.ts` /
+   * `routers/async/video.ts`); cancel only releases the UI.
+   *
+   * The write goes through `updateIfActive`, a conditional `UPDATE ... WHERE
+   * status IN (Pending, Processing)`, rather than a read-then-write: reading
+   * the status first and branching on it (the previous approach) is a TOCTOU
+   * race against the provider-completion handler, which can finish and mark
+   * the task Success between this request's read and its write, silently
+   * overwriting a real result. If the guard finds the task already terminal
+   * — a real completion won the race, or it was already cancelled — this
+   * reports the current truth instead of overwriting it.
+   */
+  cancelGeneration: generationProcedure
+    .use(withScopedPermission('generation_batch:update'))
+    .input(z.object({ asyncTaskId: z.string(), generationId: z.string() }))
+    .mutation(async ({ ctx, input }): Promise<GetGenerationStatusResult> => {
+      const generation = await ctx.generationModel.findById(input.generationId);
+      if (!generation) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Generation not found' });
+      }
+      assertWorkspaceRowManageable(ctx, generation.userId, 'generation');
+
+      const asyncTask = await ctx.asyncTaskModel.findById(input.asyncTaskId);
+      if (!asyncTask) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Async task not found' });
+      }
+
+      const error = new AsyncTaskError(AsyncTaskErrorType.TaskCancelled, 'Generation cancelled');
+      const cancelled = await ctx.asyncTaskModel.updateIfActive(input.asyncTaskId, {
+        error,
+        status: AsyncTaskStatus.Error,
+      });
+
+      if (cancelled) {
+        return { error, generation: null, status: AsyncTaskStatus.Error };
+      }
+
+      // Guard missed: the task reached a terminal state before this write
+      // landed (a real completion won the race, or it was already
+      // cancelled). Report the truth instead of the overwrite we didn't make.
+      const current = (await ctx.asyncTaskModel.findById(input.asyncTaskId)) ?? asyncTask;
+      const result: GetGenerationStatusResult = {
+        error: null,
+        generation: null,
+        status: current.status as AsyncTaskStatus,
+      };
+
+      if (current.status === AsyncTaskStatus.Success) {
+        result.generation = await ctx.generationModel.findByIdAndTransform(input.generationId);
+      } else if (current.status === AsyncTaskStatus.Error) {
+        result.error = current.error as AsyncTaskError;
       }
 
       return result;

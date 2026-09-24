@@ -3,7 +3,7 @@
 import { Block, Center, Icon } from '@lobehub/ui';
 import { Text } from '@lobehub/ui/base-ui';
 import { cssVar } from 'antd-style';
-import { VideoOffIcon } from 'lucide-react';
+import { Ban, VideoOffIcon } from 'lucide-react';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -48,6 +48,7 @@ const VideoErrorItem = memo<VideoErrorItemProps>(
 
     const isProviderContentModerationError =
       generation.task.error?.name === AsyncTaskErrorType.ProviderContentModeration;
+    const isCancelled = generation.task.error?.name === AsyncTaskErrorType.TaskCancelled;
 
     return (
       <Block
@@ -65,13 +66,19 @@ const VideoErrorItem = memo<VideoErrorItemProps>(
         onClick={onCopyError}
       >
         <Center gap={8}>
-          <Icon color={cssVar.colorTextDescription} icon={VideoOffIcon} size={24} />
+          <Icon
+            color={cssVar.colorTextDescription}
+            icon={isCancelled ? Ban : VideoOffIcon}
+            size={24}
+          />
           <Text strong type={'secondary'}>
-            {isProviderContentModerationError
-              ? tError('response.ProviderContentModeration')
-              : t('generation.status.failed')}
+            {isCancelled
+              ? t('generation.status.cancelled')
+              : isProviderContentModerationError
+                ? tError('response.ProviderContentModeration')
+                : t('generation.status.failed')}
           </Text>
-          {generation.task.error && !isProviderContentModerationError && (
+          {generation.task.error && !isProviderContentModerationError && !isCancelled && (
             <Text
               code
               ellipsis={{ rows: 2 }}

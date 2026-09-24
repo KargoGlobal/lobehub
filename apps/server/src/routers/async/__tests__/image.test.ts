@@ -81,7 +81,11 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
   beforeEach(() => {
     vi.clearAllMocks();
 
-    asyncTaskModelMock = { findById: vi.fn(), update: vi.fn() };
+    asyncTaskModelMock = {
+      findById: vi.fn(),
+      update: vi.fn(),
+      updateIfActive: vi.fn().mockResolvedValue(true),
+    };
     generationBatchModelMock = { findById: vi.fn() };
     generationModelMock = { createAssetAndFile: vi.fn() };
     generationServiceMock = {
@@ -116,8 +120,9 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
     // (c) resolves rather than throwing
     expect(result).toMatchObject({ success: false });
 
-    // (a) task marked Error
-    expect(asyncTaskModelMock.update).toHaveBeenCalledWith(
+    // (a) task marked Error via the guarded conditional update (not the
+    // plain `update`, which would unconditionally overwrite a cancelled task)
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledWith(
       'task-1',
       expect.objectContaining({ status: AsyncTaskStatus.Error }),
     );
@@ -130,6 +135,57 @@ describe('imageRouter.createImage — model mapping failure reconciles billing',
         prechargeResult: { reservationKey: 'brk-1' },
       }),
     );
+  });
+
+  it('skips the provider call entirely when the task was already cancelled before processing started', async () => {
+    // The lambda mutation returns taskId to the client immediately after
+    // creating the task; this async-router invocation is a real HTTP round
+    // trip later. A cancel landing in that gap must stop this handler
+    // before it ever reaches the provider — no fal spend on a generation
+    // nobody wants.
+    asyncTaskModelMock.updateIfActive.mockResolvedValueOnce(false);
+
+    const caller = imageRouter.createCaller(mockCtx);
+    const result = await caller.createImage(createInput());
+
+    expect(result).toMatchObject({ success: true });
+
+    // The Processing-transition guard missed, so nothing past it ever ran.
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledTimes(1);
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledWith('task-1', {
+      status: AsyncTaskStatus.Processing,
+    });
+    expect(resolveBusinessModelMapping).not.toHaveBeenCalled();
+    // initModelRuntimeFromDB is the gate in front of the actual provider
+    // (fal) call — never reaching it proves the provider was never invoked.
+    expect(initModelRuntimeFromDB).not.toHaveBeenCalled();
+    expect(asyncTaskModelMock.findById).not.toHaveBeenCalled();
+  });
+
+  it('skips the Error write (and does not throw) when the task was already cancelled', async () => {
+    // Regression for terminal-state stickiness: a cancelled task must not be
+    // resurrected/overwritten by a completion handler that finishes later.
+    // The Processing-transition guard (first call) still succeeds here —
+    // this test is about a cancel landing *after* processing started, not
+    // before it (that's the "skips the provider call entirely" test above).
+    asyncTaskModelMock.updateIfActive.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    asyncTaskModelMock.findById.mockResolvedValue({
+      metadata: { precharge: { reservationKey: 'brk-1' } },
+    });
+    vi.mocked(resolveBusinessModelMapping).mockRejectedValue(new Error('mapping failed'));
+
+    const caller = imageRouter.createCaller(mockCtx);
+    const result = await caller.createImage(createInput());
+
+    expect(result).toMatchObject({ success: false });
+    expect(asyncTaskModelMock.updateIfActive).toHaveBeenCalledWith(
+      'task-1',
+      expect.objectContaining({ status: AsyncTaskStatus.Error }),
+    );
+    // The plain (unconditional) `update` is never used for any status
+    // transition on this path — both Processing and Error go through the
+    // guarded conditional update.
+    expect(asyncTaskModelMock.update).not.toHaveBeenCalled();
   });
 
   it('threads undefined prechargeResult when the task has no precharge handle', async () => {

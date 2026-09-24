@@ -10,6 +10,7 @@ const {
   mockGetKeyFromFullUrl,
   mockGetFullFileUrl,
   mockAsyncTaskModelUpdate,
+  mockAsyncTaskModelUpdateIfActive,
   mockChargeAfterGenerate,
   mockChargeBeforeGenerate,
   mockCreateAsyncCaller,
@@ -25,6 +26,7 @@ const {
   mockGetKeyFromFullUrl: vi.fn(),
   mockGetFullFileUrl: vi.fn(),
   mockAsyncTaskModelUpdate: vi.fn(),
+  mockAsyncTaskModelUpdateIfActive: vi.fn().mockResolvedValue(true),
   mockChargeAfterGenerate: vi.fn(),
   mockChargeBeforeGenerate: vi.fn(),
   mockCreateAsyncCaller: vi.fn(),
@@ -57,6 +59,7 @@ vi.mock('@/server/services/file', () => ({
 vi.mock('@/database/models/asyncTask', () => ({
   AsyncTaskModel: vi.fn(() => ({
     update: mockAsyncTaskModelUpdate,
+    updateIfActive: mockAsyncTaskModelUpdateIfActive,
   })),
 }));
 
@@ -541,8 +544,28 @@ describe('imageRouter', () => {
 
       // Should still return success as the database records were created
       expect(result.success).toBe(true);
-      // Should update async task status to error
-      expect(mockAsyncTaskModelUpdate).toHaveBeenCalled();
+      // Should update async task status to error, via the guarded conditional
+      // update (not the plain `update`, which would unconditionally
+      // overwrite a task a concurrent session may have already cancelled)
+      expect(mockAsyncTaskModelUpdateIfActive).toHaveBeenCalled();
+    });
+
+    it('does not resurrect a task that was already cancelled by the time the async-caller failure is handled', async () => {
+      mockCreateAsyncCaller.mockRejectedValue(new Error('Caller creation failed'));
+      mockAsyncTaskModelUpdateIfActive.mockResolvedValueOnce(false);
+
+      const ctx = createMockCtx();
+      const input = createDefaultInput();
+
+      const caller = imageRouter.createCaller(ctx);
+      const result = await caller.createImage(input);
+
+      expect(result.success).toBe(true);
+      expect(mockAsyncTaskModelUpdateIfActive).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ status: AsyncTaskStatus.Error }),
+      );
+      expect(mockAsyncTaskModelUpdate).not.toHaveBeenCalled();
     });
 
     it('reconciles per-generation billing handles when async startup fails', async () => {
@@ -597,8 +620,8 @@ describe('imageRouter', () => {
       await caller.createImage(input);
 
       // Should update both tasks to error status
-      expect(mockAsyncTaskModelUpdate).toHaveBeenCalledTimes(2);
-      expect(mockAsyncTaskModelUpdate).toHaveBeenCalledWith(
+      expect(mockAsyncTaskModelUpdateIfActive).toHaveBeenCalledTimes(2);
+      expect(mockAsyncTaskModelUpdateIfActive).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
           status: AsyncTaskStatus.Error,
