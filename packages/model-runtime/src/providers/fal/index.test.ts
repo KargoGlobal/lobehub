@@ -982,6 +982,127 @@ describe('LobeFalAI', () => {
       });
     });
 
+    describe('GPT Image 2 aspect ratio (image_size conversion)', () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: {
+          images: [{ url: 'https://example.com/generated.jpg', width: 1024, height: 1024 }],
+        },
+      };
+
+      it.each([
+        ['1:1', 'square_hd'],
+        ['16:9', 'landscape_16_9'],
+        ['9:16', 'portrait_16_9'],
+        ['4:3', 'landscape_4_3'],
+        ['3:4', 'portrait_4_3'],
+      ])(
+        'converts aspectRatio %s to image_size %s on text-to-image',
+        async (aspectRatio, imageSize) => {
+          mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+          await instance.createImage({
+            model: 'openai/gpt-image-2',
+            params: { prompt: 'A poster', aspectRatio } as any,
+          });
+
+          expect(mockFal.subscribe).toHaveBeenCalledWith('openai/gpt-image-2', {
+            input: {
+              enable_safety_checker: false,
+              num_images: 1,
+              prompt: 'A poster',
+              image_size: imageSize,
+            },
+          });
+        },
+      );
+
+      it('converts aspectRatio to image_size on the /edit endpoint when references are attached', async () => {
+        mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+        await instance.createImage({
+          model: 'openai/gpt-image-2',
+          params: {
+            prompt: 'Edit this poster',
+            aspectRatio: '9:16',
+            imageUrls: ['https://example.com/input.jpg'],
+          } as any,
+        });
+
+        expect(mockFal.subscribe).toHaveBeenCalledWith('openai/gpt-image-2/edit', {
+          input: {
+            enable_safety_checker: false,
+            num_images: 1,
+            prompt: 'Edit this poster',
+            image_urls: ['https://example.com/input.jpg'],
+            image_size: 'portrait_16_9',
+          },
+        });
+      });
+
+      it('does not forward aspect_ratio (fal rejects it on this endpoint)', async () => {
+        mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+        await instance.createImage({
+          model: 'openai/gpt-image-2',
+          params: { prompt: 'A poster', aspectRatio: '16:9' } as any,
+        });
+
+        const [, { input }] = mockFal.subscribe.mock.calls[0];
+        expect(input).not.toHaveProperty('aspect_ratio');
+      });
+    });
+
+    describe('Nano Banana 2 aspect ratio (aspect_ratio passthrough)', () => {
+      const mockImageResponse = {
+        requestId: 'test-request-id',
+        data: {
+          images: [{ url: 'https://example.com/generated.jpg', width: 1024, height: 1024 }],
+        },
+      };
+
+      it('forwards aspectRatio as aspect_ratio unchanged on text-to-image', async () => {
+        mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+        await instance.createImage({
+          model: 'fal-ai/nano-banana-2',
+          params: { prompt: 'A poster', aspectRatio: '16:9' } as any,
+        });
+
+        expect(mockFal.subscribe).toHaveBeenCalledWith('fal-ai/nano-banana-2', {
+          input: {
+            enable_safety_checker: false,
+            num_images: 1,
+            prompt: 'A poster',
+            aspect_ratio: '16:9',
+          },
+        });
+      });
+
+      it('forwards aspectRatio as aspect_ratio unchanged on the /edit endpoint', async () => {
+        mockFal.subscribe.mockResolvedValue(mockImageResponse as any);
+
+        await instance.createImage({
+          model: 'fal-ai/nano-banana-2',
+          params: {
+            prompt: 'Edit this poster',
+            aspectRatio: '9:16',
+            imageUrls: ['https://example.com/input.jpg'],
+          } as any,
+        });
+
+        expect(mockFal.subscribe).toHaveBeenCalledWith('fal-ai/nano-banana-2/edit', {
+          input: {
+            enable_safety_checker: false,
+            num_images: 1,
+            prompt: 'Edit this poster',
+            image_urls: ['https://example.com/input.jpg'],
+            aspect_ratio: '9:16',
+          },
+        });
+      });
+    });
+
     describe('Edge cases', () => {
       it('should handle empty params object', async () => {
         // Arrange
