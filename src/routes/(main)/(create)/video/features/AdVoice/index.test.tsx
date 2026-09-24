@@ -90,6 +90,28 @@ describe('AdVoiceAction', () => {
     expect(player).toHaveAttribute('src', 'https://files.test/vo.mp3');
   });
 
+  it('inserts a pause tag into the script at the end when nothing is focused yet', async () => {
+    renderAction();
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN_BUTTON }));
+    const script = await screen.findByTestId('advoice-script');
+    fireEvent.change(script, { target: { value: 'Spring sale starts now.' } });
+
+    fireEvent.click(screen.getByTestId('advoice-insert-pause'));
+
+    expect(script).toHaveValue('Spring sale starts now.<break time="1s" />');
+  });
+
+  it('shows the ElevenLabs pause-syntax hint by default', async () => {
+    renderAction();
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN_BUTTON }));
+    await screen.findByTestId('advoice-script');
+
+    expect(screen.getByText(/pauseHintElevenlabs/)).toBeInTheDocument();
+    expect(screen.queryByText(/pauseHintMinimax/)).toBeNull();
+  });
+
   it('hides the performer tab until the synthetic_performer flag is on', async () => {
     renderAction();
     fireEvent.click(screen.getByRole('button', { name: OPEN_BUTTON }));

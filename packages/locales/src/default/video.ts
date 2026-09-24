@@ -17,6 +17,7 @@ export default {
   'autoAnimate.subtitle':
     'Describe the product (or attach a photo), and get a few standard ad animations — spins, hero arcs, detail push-ins and on-model shots — ready to generate.',
   'autoAnimate.title': 'Auto-animate',
+  'autoAnimate.toolDescription': 'Turn a product photo into a set of standard ad animations.',
   'autoAnimate.usingPhoto': 'Using your attached product photo.',
   'cameraDirector.apply': 'Apply to prompt',
   'cameraDirector.applied': 'Camera Director prompt and settings applied',
@@ -67,6 +68,8 @@ export default {
   'cameraDirector.template.onModel': 'On-model',
   'cameraDirector.template.product3d': '3D Product Ad',
   'cameraDirector.title': 'Camera Director',
+  'cameraDirector.toolDescription':
+    'Build a structured, timed shot list from a template — MiniMax H3 models only.',
   'config.aspectRatio.label': 'Aspect Ratio',
   'config.cameraFixed.label': 'Fixed Camera',
   'config.duration.ceiling':
@@ -116,6 +119,7 @@ export default {
   'finalCut.subtitle':
     "Stitch this topic's clips into one file, in order, and optionally swap in a voiceover, music bed or sound effect. The export always replaces each clip's own audio — clips concatenated from separate generations rarely share usable native sound.",
   'finalCut.title': 'Final Cut',
+  'finalCut.toolDescription': "Stitch this topic's finished clips into one exported file.",
   'generation.actions.copyError': 'Copy Error Message',
   'generation.actions.errorCopied': 'Error Message Copied to Clipboard',
   'generation.actions.errorCopyFailed': 'Failed to Copy Error Message',
@@ -147,6 +151,7 @@ export default {
     'Visibility is fixed for the current topic. Create a new topic to choose a different space.',
   'topic.workspaceTitle': 'Workspace',
   'adVoice.title': 'Ad Voice',
+  'adVoice.toolDescription': 'Generate voiceover, music, sound effects, or a talking performer.',
   'adVoice.subtitle':
     'Write the script, pick a voice, add a music bed or a sound effect. Audio lands in your files so it can drive a talking-performer clip or a final cut.',
   'adVoice.batchLabel': 'Ad voice',
@@ -159,6 +164,11 @@ export default {
     "e.g. Meet the jacket that packs into its own pocket. Rain, wind, whatever — you're covered. Shop the spring drop now.",
   'adVoice.speech.estimate': '{{chars}} characters · about {{seconds}}s · {{cost}}',
   'adVoice.speech.addBrandVoice': 'Add {{name}} voice notes',
+  'adVoice.speech.insertPause': 'Insert pause',
+  'adVoice.speech.pauseHintElevenlabs':
+    'Use {{tag}} to add a pause anywhere in the script (N = seconds).',
+  'adVoice.speech.pauseHintMinimax':
+    'Use {{tag}} to add a pause — translated automatically to MiniMax’s own pause marker.',
   'adVoice.speech.engine': 'Engine',
   'adVoice.speech.voice': 'Voice',
   'adVoice.speech.speed': 'Speed · {{value}}×',
@@ -220,9 +230,12 @@ export default {
   'storyboard.subtitle':
     'Chain separate MiniMax H3 Max clips into one continuous narrative — review and edit every shot before any clip is generated, since each one is a real, separately-billed call.',
   'storyboard.title': 'Storyboard',
+  'storyboard.toolDescription':
+    'Chain multiple shots into one continuous narrative — MiniMax H3 models only.',
   'storyboard.totalSummary': '{{shots}} shots · {{duration}}s total · about {{cost}}',
   'storyboard.usingPhoto': 'Using your attached product photo for every shot.',
   'videoRestyle.title': 'Video Restyle',
+  'videoRestyle.toolDescription': 'Fix one generated clip instead of regenerating from scratch.',
   'videoRestyle.subtitle':
     'Fix one generated clip instead of regenerating — swap an outfit, an object or the whole look while the shot and motion stay put.',
   'videoRestyle.clip': 'Source clip',
@@ -236,4 +249,8 @@ export default {
   'videoRestyle.estimate': 'Estimate · {{cost}}',
   'videoRestyle.generate': 'Restyle clip',
   'videoRestyle.started': 'Restyle started — it will appear in the feed',
+  'tools.title': 'Tools',
+  'tools.unavailable.h3Family':
+    'Only available for MiniMax H3 models. Switch models in the toolbar to use this.',
+  'tools.unavailable.h3Max': 'Requires the MiniMax H3 Max model to be enabled for your account.',
 } as const;

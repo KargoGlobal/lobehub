@@ -567,32 +567,64 @@ const StoryboardModal = memo<StoryboardModalProps>(({ open, onClose }) => {
 });
 
 /**
- * Toolbar entry point. Shown whenever the fal provider exposes the H3 Max
- * model this tool targets — independent of which model is selected, the same
- * gating Auto-animate uses, since both tools submit their own explicit
- * model/provider requests rather than using the toolbar's selected model.
+ * Whether the fal provider exposes the H3 Max model this tool targets —
+ * independent of which model is selected, the same gating Auto-animate uses,
+ * since both tools submit their own explicit model/provider requests rather
+ * than using the toolbar's selected model. Exported so the Tools menu can
+ * show the entry disabled-with-reason instead of hiding it.
  */
-const StoryboardAction = memo(() => {
-  const { t } = useTranslation('video');
-  const [open, setOpen] = useState(false);
+export const useStoryboardAvailability = (): boolean => {
   const enabledVideoModelList = useAiInfraStore(aiProviderSelectors.enabledVideoModelList);
 
-  const available = useMemo(() => {
+  return useMemo(() => {
     const fal = enabledVideoModelList.find((p) => p.id === FAL_PROVIDER);
     if (!fal) return false;
     const ids = new Set(fal.children.map((m) => m.id));
     return ids.has(STORYBOARD_MODELS.startFrame);
   }, [enabledVideoModelList]);
+};
 
-  if (!available) return null;
+interface StoryboardActionProps {
+  /** Controlled open state (used by the Tools menu); uncontrolled by default. */
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+  /** Render the bare toolbar icon trigger. Set false when a menu opens this tool instead. @default true */
+  renderTrigger?: boolean;
+}
 
-  return (
-    <>
-      <Action icon={ListVideo} title={t('storyboard.title')} onClick={() => setOpen(true)} />
-      {open && <StoryboardModal open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-});
+/**
+ * Toolbar entry point. Shown whenever the fal provider exposes the H3 Max
+ * model this tool targets — independent of which model is selected, the same
+ * gating Auto-animate uses, since both tools submit their own explicit
+ * model/provider requests rather than using the toolbar's selected model.
+ */
+const StoryboardAction = memo<StoryboardActionProps>(
+  ({ open: openProp, onOpenChange, renderTrigger = true }) => {
+    const { t } = useTranslation('video');
+    const [internalOpen, setInternalOpen] = useState(false);
+    const available = useStoryboardAvailability();
+
+    const open = openProp ?? internalOpen;
+    const setOpen = useCallback(
+      (next: boolean) => {
+        setInternalOpen(next);
+        onOpenChange?.(next);
+      },
+      [onOpenChange],
+    );
+
+    if (renderTrigger && !available) return null;
+
+    return (
+      <>
+        {renderTrigger && (
+          <Action icon={ListVideo} title={t('storyboard.title')} onClick={() => setOpen(true)} />
+        )}
+        {open && <StoryboardModal open={open} onClose={() => setOpen(false)} />}
+      </>
+    );
+  },
+);
 
 StoryboardAction.displayName = 'StoryboardAction';
 

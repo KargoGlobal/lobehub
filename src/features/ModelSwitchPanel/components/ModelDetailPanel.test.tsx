@@ -111,16 +111,21 @@ const translations: Record<string, string> = {
   'ModelSwitchPanel.detail.pricing': 'Pricing',
   'ModelSwitchPanel.detail.pricing.credits.input': 'Input {{amount}} credits/M tokens',
   'ModelSwitchPanel.detail.pricing.credits.output': 'Output {{amount}} credits/M tokens',
-  'ModelSwitchPanel.detail.pricing.credits.perImage': '~ {{amount}} credits / image',
-  'ModelSwitchPanel.detail.pricing.credits.perVideo': '~ {{amount}} credits / video',
+  'ModelSwitchPanel.detail.pricing.credits.perImage':
+    'est. provider cost: {{amount}} credits / image',
+  'ModelSwitchPanel.detail.pricing.credits.perImageScales':
+    'from {{amount}} credits / image (scales with size)',
+  'ModelSwitchPanel.detail.pricing.credits.perVideo':
+    'est. provider cost: {{amount}} credits / video',
   'ModelSwitchPanel.detail.pricing.credits.image': 'credits/img',
   'ModelSwitchPanel.detail.pricing.credits.millionTokens': 'credits/M tokens',
   'ModelSwitchPanel.detail.pricing.group.image': 'Image',
   'ModelSwitchPanel.detail.pricing.group.text': 'Text',
   'ModelSwitchPanel.detail.pricing.input': 'Input ${{amount}}/M',
   'ModelSwitchPanel.detail.pricing.output': 'Output ${{amount}}/M',
-  'ModelSwitchPanel.detail.pricing.perImage': '~ ${{amount}} / image',
-  'ModelSwitchPanel.detail.pricing.perVideo': '~ ${{amount}} / video',
+  'ModelSwitchPanel.detail.pricing.perImage': 'est. provider cost: ${{amount}} / image',
+  'ModelSwitchPanel.detail.pricing.perImageScales': 'from ${{amount}} / image (scales with size)',
+  'ModelSwitchPanel.detail.pricing.perVideo': 'est. provider cost: ${{amount}} / video',
   'ModelSwitchPanel.detail.pricing.unit.imageGeneration': 'Image Generation',
   'ModelSwitchPanel.detail.pricing.unit.textInput': 'Input',
   'ModelSwitchPanel.detail.pricing.unit.textOutput': 'Output',
@@ -339,7 +344,7 @@ describe('ModelDetailPanel pricing', () => {
       />,
     );
 
-    expect(imageResult.container).toHaveTextContent('~ 40.0K credits / image');
+    expect(imageResult.container).toHaveTextContent('est. provider cost: 40.0K credits / image');
     expect(imageResult.container).toHaveTextContent('40.0K credits/img');
     expect(imageResult.container).not.toHaveTextContent('$0.04');
 
@@ -354,8 +359,27 @@ describe('ModelDetailPanel pricing', () => {
       />,
     );
 
-    expect(videoResult.container).toHaveTextContent('~ 800.0K credits / video');
+    expect(videoResult.container).toHaveTextContent('est. provider cost: 800.0K credits / video');
     expect(videoResult.container).not.toHaveTextContent('$0.80');
+  });
+
+  it('labels a megapixel-priced model as a floor, not a flat number', () => {
+    const megapixelPricing = {
+      currency: 'USD',
+      units: [{ name: 'imageGeneration', rate: 0.025, strategy: 'fixed', unit: 'megapixel' }],
+    };
+
+    const { container } = render(
+      <ModelDetailPanel
+        enabledList={createEnabledList('fal', megapixelPricing)}
+        model="test-model"
+        pricingMode="image"
+        provider="fal"
+      />,
+    );
+
+    expect(container).toHaveTextContent('from $0.02621 / image (scales with size)');
+    expect(container).not.toHaveTextContent('est. provider cost');
   });
 
   it('renders a placeholder for empty lookup pricing tables', () => {

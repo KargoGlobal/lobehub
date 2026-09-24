@@ -602,23 +602,58 @@ const CameraDirectorModal = memo<CameraDirectorModalProps>(({ open, onClose }) =
 });
 
 /**
+ * Whether the selected model understands the Director's prompt grammar
+ * (MiniMax H3 family). Exported so the Tools menu can show the entry
+ * disabled-with-reason instead of hiding it when a different model is active.
+ */
+export const useCameraDirectorAvailability = (): boolean => {
+  const model = useVideoStore(videoGenerationConfigSelectors.model);
+  return supportsCameraDirector(model);
+};
+
+interface CameraDirectorActionProps {
+  /** Controlled open state (used by the Tools menu); uncontrolled by default. */
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+  /** Render the bare toolbar icon trigger. Set false when a menu opens this tool instead. @default true */
+  renderTrigger?: boolean;
+}
+
+/**
  * Toolbar entry point. Rendered only when the selected model understands the
  * Director's prompt grammar (MiniMax H3 family).
  */
-const CameraDirectorAction = memo(() => {
-  const { t } = useTranslation('video');
-  const [open, setOpen] = useState(false);
-  const model = useVideoStore(videoGenerationConfigSelectors.model);
+const CameraDirectorAction = memo<CameraDirectorActionProps>(
+  ({ open: openProp, onOpenChange, renderTrigger = true }) => {
+    const { t } = useTranslation('video');
+    const [internalOpen, setInternalOpen] = useState(false);
+    const available = useCameraDirectorAvailability();
 
-  if (!supportsCameraDirector(model)) return null;
+    const open = openProp ?? internalOpen;
+    const setOpen = useCallback(
+      (next: boolean) => {
+        setInternalOpen(next);
+        onOpenChange?.(next);
+      },
+      [onOpenChange],
+    );
 
-  return (
-    <>
-      <Action icon={Clapperboard} title={t('cameraDirector.title')} onClick={() => setOpen(true)} />
-      {open && <CameraDirectorModal open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-});
+    if (renderTrigger && !available) return null;
+
+    return (
+      <>
+        {renderTrigger && (
+          <Action
+            icon={Clapperboard}
+            title={t('cameraDirector.title')}
+            onClick={() => setOpen(true)}
+          />
+        )}
+        {open && <CameraDirectorModal open={open} onClose={() => setOpen(false)} />}
+      </>
+    );
+  },
+);
 
 CameraDirectorAction.displayName = 'CameraDirectorAction';
 

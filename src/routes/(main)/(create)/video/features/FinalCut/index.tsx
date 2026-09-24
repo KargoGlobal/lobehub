@@ -337,18 +337,39 @@ const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
 
 FinalCutModal.displayName = 'FinalCutModal';
 
-/** Toolbar entry point for the video workspace. */
-const FinalCutAction = memo(() => {
-  const { t } = useTranslation('video');
-  const [open, setOpen] = useState(false);
+interface FinalCutActionProps {
+  /** Controlled open state (used by the Tools menu); uncontrolled by default. */
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+  /** Render the bare toolbar icon trigger. Set false when a menu opens this tool instead. @default true */
+  renderTrigger?: boolean;
+}
 
-  return (
-    <>
-      <Action icon={Film} title={t('finalCut.title')} onClick={() => setOpen(true)} />
-      {open && <FinalCutModal open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-});
+/** Toolbar entry point for the video workspace. */
+const FinalCutAction = memo<FinalCutActionProps>(
+  ({ open: openProp, onOpenChange, renderTrigger = true }) => {
+    const { t } = useTranslation('video');
+    const [internalOpen, setInternalOpen] = useState(false);
+
+    const open = openProp ?? internalOpen;
+    const setOpen = useCallback(
+      (next: boolean) => {
+        setInternalOpen(next);
+        onOpenChange?.(next);
+      },
+      [onOpenChange],
+    );
+
+    return (
+      <>
+        {renderTrigger && (
+          <Action icon={Film} title={t('finalCut.title')} onClick={() => setOpen(true)} />
+        )}
+        {open && <FinalCutModal open={open} onClose={() => setOpen(false)} />}
+      </>
+    );
+  },
+);
 
 FinalCutAction.displayName = 'FinalCutAction';
 

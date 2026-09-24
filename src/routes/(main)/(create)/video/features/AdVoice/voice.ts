@@ -239,6 +239,36 @@ export const buildAvatarRequest = (input: AvatarInput): VideoGenerationRequest =
   };
 };
 
+// ElevenLabs' `<break time="Ns" />` markup pauses speech for N seconds; the
+// script editor's "insert pause" button writes this tag. It passes through to
+// the ElevenLabs request unaltered — the fal runtime (packages/model-runtime)
+// translates it for the MiniMax engine, which uses a different marker.
+export const PAUSE_SECONDS_DEFAULT = 1;
+
+export const buildPauseTag = (seconds: number = PAUSE_SECONDS_DEFAULT): string =>
+  `<break time="${seconds}s" />`;
+
+export interface PauseInsertion {
+  /** Where the caret should land after the insert (end of the inserted tag). */
+  cursor: number;
+  text: string;
+}
+
+/** Splices a pause tag into `text` at `cursor`, clamping to the text bounds and defaulting to the end when the cursor is unknown (e.g. before the field has been focused). */
+export const insertPauseTag = (
+  text: string,
+  cursor: number | null | undefined,
+  seconds: number = PAUSE_SECONDS_DEFAULT,
+): PauseInsertion => {
+  const tag = buildPauseTag(seconds);
+  const at = typeof cursor === 'number' ? Math.max(0, Math.min(cursor, text.length)) : text.length;
+
+  return {
+    cursor: at + tag.length,
+    text: `${text.slice(0, at)}${tag}${text.slice(at)}`,
+  };
+};
+
 export const isSyntheticPerformerBatch = (config: unknown): boolean =>
   !!config &&
   typeof config === 'object' &&

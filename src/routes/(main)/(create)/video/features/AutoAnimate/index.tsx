@@ -302,30 +302,61 @@ const AutoAnimateModal = memo<AutoAnimateModalProps>(({ open, onClose }) => {
 });
 
 /**
- * Toolbar entry point. Shown whenever the fal provider exposes the H3 models
- * Auto-animate targets, independent of which model is selected.
+ * Whether the fal provider exposes the H3 Max model Auto-animate targets,
+ * independent of which model is selected in the toolbar (this tool always
+ * submits its own explicit model/provider requests). Exported so the Tools
+ * menu can show the entry disabled-with-reason instead of hiding it.
  */
-const AutoAnimateAction = memo(() => {
-  const { t } = useTranslation('video');
-  const [open, setOpen] = useState(false);
+export const useAutoAnimateAvailability = (): boolean => {
   const enabledVideoModelList = useAiInfraStore(aiProviderSelectors.enabledVideoModelList);
 
-  const available = useMemo(() => {
+  return useMemo(() => {
     const fal = enabledVideoModelList.find((p) => p.id === FAL_PROVIDER);
     if (!fal) return false;
     const ids = new Set(fal.children.map((m) => m.id));
     return ids.has(AUTO_ANIMATE_MODELS.startFrame);
   }, [enabledVideoModelList]);
+};
 
-  if (!available) return null;
+interface AutoAnimateActionProps {
+  /** Controlled open state (used by the Tools menu); uncontrolled by default. */
+  onOpenChange?: (open: boolean) => void;
+  open?: boolean;
+  /** Render the bare toolbar icon trigger. Set false when a menu opens this tool instead. @default true */
+  renderTrigger?: boolean;
+}
 
-  return (
-    <>
-      <Action icon={Sparkles} title={t('autoAnimate.title')} onClick={() => setOpen(true)} />
-      {open && <AutoAnimateModal open={open} onClose={() => setOpen(false)} />}
-    </>
-  );
-});
+/**
+ * Toolbar entry point. Shown whenever the fal provider exposes the H3 models
+ * Auto-animate targets, independent of which model is selected.
+ */
+const AutoAnimateAction = memo<AutoAnimateActionProps>(
+  ({ open: openProp, onOpenChange, renderTrigger = true }) => {
+    const { t } = useTranslation('video');
+    const [internalOpen, setInternalOpen] = useState(false);
+    const available = useAutoAnimateAvailability();
+
+    const open = openProp ?? internalOpen;
+    const setOpen = useCallback(
+      (next: boolean) => {
+        setInternalOpen(next);
+        onOpenChange?.(next);
+      },
+      [onOpenChange],
+    );
+
+    if (renderTrigger && !available) return null;
+
+    return (
+      <>
+        {renderTrigger && (
+          <Action icon={Sparkles} title={t('autoAnimate.title')} onClick={() => setOpen(true)} />
+        )}
+        {open && <AutoAnimateModal open={open} onClose={() => setOpen(false)} />}
+      </>
+    );
+  },
+);
 
 AutoAnimateAction.displayName = 'AutoAnimateAction';
 
