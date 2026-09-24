@@ -34,6 +34,7 @@ export const GenerationItem = memo<GenerationItemProps>(
     const reuseSeed = useImageStore((s) => s.reuseSeed);
     const activeTopicId = useImageStore((s) => s.activeGenerationTopicId);
     const isSupportSeed = useImageStore(isSupportedParamSelector('seed'));
+    const applyRefineFromGeneration = useImageStore((s) => s.applyRefineFromGeneration);
     const { downloadImage } = useDownloadImage();
 
     const isFinalized =
@@ -88,6 +89,17 @@ export const GenerationItem = memo<GenerationItemProps>(
         toast.error(t('generation.actions.upscaleFailed'));
       }
     }, [createUtilityImage, generation.asset?.url, t]);
+
+    const handleRefine = useCallback(() => {
+      if (!generation.asset?.url) return;
+
+      const ok = applyRefineFromGeneration(generation.asset.url, prompt);
+      if (ok) {
+        toast.success(t('generation.actions.refineReady'));
+      } else {
+        toast.error(t('generation.actions.refineUnsupported'));
+      }
+    }, [applyRefineFromGeneration, generation.asset?.url, prompt, t]);
 
     const handleSendToVideo = useCallback(() => {
       if (!generation.asset?.url) return;
@@ -155,6 +167,7 @@ export const GenerationItem = memo<GenerationItemProps>(
           onCopySeed={handleCopySeed}
           onDelete={handleDeleteGeneration}
           onDownload={handleDownloadImage}
+          onRefine={handleRefine}
           onRemoveBackground={handleRemoveBackground}
           onSendToVideo={handleSendToVideo}
           onUpscale={handleUpscale}
