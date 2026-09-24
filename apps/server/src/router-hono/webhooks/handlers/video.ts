@@ -157,10 +157,21 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
     // Handle error result: refund precharge and mark task as error
     if (result.status === 'error') {
       log('Video generation failed: %s', result.error);
-      await asyncTaskModel.update(asyncTask.id, {
+      // Guarded: the idempotency check above only looked at the task's
+      // status once, before the (potentially seconds-long) business-model
+      // mapping lookup. A cancel landing in that window must not be
+      // overwritten by this webhook's completion write.
+      const applied = await asyncTaskModel.updateIfActive(asyncTask.id, {
         error: new AsyncTaskError(AsyncTaskErrorType.ServerError, result.error),
         status: AsyncTaskStatus.Error,
       });
+      if (!applied) {
+        log(
+          'AsyncTask %s is no longer active (likely cancelled); skipping Error write',
+          asyncTask.id,
+        );
+        return c.json({ success: true });
+      }
 
       try {
         await chargeAfterGenerate({
@@ -218,10 +229,20 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
 
     const duration = Date.now() - asyncTask.createdAt.getTime();
 
-    await asyncTaskModel.update(asyncTask.id, {
+    // Guarded for the same reason as the Error write above: the
+    // download/process/upload/asset-creation work just above can take
+    // seconds, long enough for a cancel to land in between.
+    const applied = await asyncTaskModel.updateIfActive(asyncTask.id, {
       duration,
       status: AsyncTaskStatus.Success,
     });
+    if (!applied) {
+      log(
+        'AsyncTask %s is no longer active (likely cancelled); skipping Success write',
+        asyncTask.id,
+      );
+      return c.json({ success: true });
+    }
 
     try {
       await notifyVideoCompleted({
@@ -267,19 +288,35 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
   } catch (error) {
     console.error('[video-webhook] Processing failed:', error);
 
+    // Tracks whether the guarded write below actually applied, so a task
+    // that turns out to already be terminal (cancelled, or resolved by a
+    // concurrent write) can be reported as handled rather than "failed".
+    // Defaults true: if we never got far enough to attempt the write (e.g.
+    // this asyncTask/asyncTaskId weren't resolved yet), the original 500
+    // behavior is preserved below.
+    let taskStillActive = true;
+
     // Mark asyncTask as Error so the user sees failure instead of stuck "processing"
     if (asyncTaskModel && asyncTaskId) {
       try {
-        await asyncTaskModel.update(asyncTaskId, {
+        taskStillActive = await asyncTaskModel.updateIfActive(asyncTaskId, {
           error: new AsyncTaskError(AsyncTaskErrorType.ServerError, (error as Error).message),
           status: AsyncTaskStatus.Error,
         });
+        if (!taskStillActive) {
+          log(
+            'AsyncTask %s is no longer active; skipping Error write in catch-all handler',
+            asyncTaskId,
+          );
+        }
       } catch (updateError) {
         console.error('[video-webhook] Failed to update asyncTask status:', updateError);
       }
     }
 
-    // Refund precharge on unexpected failure
+    // Refund precharge on unexpected failure — worth attempting even when the
+    // task was already terminal (e.g. cancelled): the user shouldn't be
+    // billed for a request that also blew up server-side.
     if (asyncTaskUserId && asyncTaskMetadata?.precharge) {
       try {
         await chargeAfterGenerate({
@@ -294,6 +331,13 @@ export const videoWebhook = async (c: Context<BlankEnv, '/video/:provider'>) => 
       } catch (refundError) {
         console.error('[video-webhook] Failed to refund precharge on failure:', refundError);
       }
+    }
+
+    // A task that's already terminal isn't actually stuck — tell the
+    // provider there's nothing to retry instead of a 500, which would
+    // otherwise retry-loop a webhook that has nothing left to do.
+    if (!taskStillActive) {
+      return c.json({ success: true });
     }
 
     return c.json({ error: (error as Error).message }, 500);
