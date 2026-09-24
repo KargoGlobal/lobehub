@@ -126,6 +126,7 @@ export default {
   'generation.freeQuota.remaining': '🎁 {{remaining}} free videos today',
   'generation.notice.referenceImageHeld':
     '{{model}} ignores reference images; your image is kept for when you switch back.',
+  'generation.status.cancelled': 'Cancelled',
   'generation.status.failed': 'Generation Failed',
   'generation.status.generating': 'Generating...',
   'generation.validation.endFrameRequiresStartFrame':
