@@ -1549,6 +1549,47 @@ describe('LobeFalAI', () => {
       const result = await instance.handlePollVideoStatus('no-separator');
       expect(result.status).toBe('failed');
     });
+
+    it('surfaces the content-policy message when the result fetch rejects with a 422', async () => {
+      (mockFal.queue.status as any).mockResolvedValue({ status: 'COMPLETED' });
+      const error: any = new Error('Unprocessable Entity');
+      error.status = 422;
+      error.body = {
+        detail: [
+          {
+            loc: ['body', 'image_url'],
+            msg: 'Input image was flagged by the safety filter',
+            type: 'content_policy_violation',
+          },
+        ],
+      };
+      (mockFal.queue.result as any).mockRejectedValue(error);
+
+      const result = await instance.handlePollVideoStatus('fal-ai/veo3.1::req-9');
+      expect(result).toEqual({
+        error:
+          'The request content violates content policy. Please modify your prompt and try again.',
+        status: 'failed',
+      });
+    });
+
+    it('surfaces joined non-policy detail messages when the result fetch rejects with a 422', async () => {
+      (mockFal.queue.status as any).mockResolvedValue({ status: 'COMPLETED' });
+      const error: any = new Error('Unprocessable Entity');
+      error.status = 422;
+      error.body = {
+        detail: [
+          { loc: ['body', 'duration'], msg: "Input should be '4s', '6s' or '8s'", type: 'enum' },
+        ],
+      };
+      (mockFal.queue.result as any).mockRejectedValue(error);
+
+      const result = await instance.handlePollVideoStatus('fal-ai/veo3.1::req-9');
+      expect(result).toEqual({
+        error: "duration: Input should be '4s', '6s' or '8s'",
+        status: 'failed',
+      });
+    });
   });
 
   describe('talking-performer endpoints (createVideo)', () => {
@@ -1882,6 +1923,44 @@ describe('LobeFalAI', () => {
       ).toEqual({ status: 'pending' });
       expect(await instance.handleCreateVideoWebhook({ body: {}, query })).toEqual({
         status: 'pending',
+      });
+    });
+
+    it('prefers the content-policy message from payload.detail over body.error', async () => {
+      const result = await instance.handleCreateVideoWebhook({
+        body: {
+          error: 'Invalid status code: 422',
+          payload: {
+            detail: [
+              { loc: ['body', 'image_url'], msg: 'flagged', type: 'content_policy_violation' },
+            ],
+          },
+          request_id: 'req-x',
+          status: 'ERROR',
+        },
+        query,
+      });
+      expect(result).toEqual({
+        error:
+          'The request content violates content policy. Please modify your prompt and try again.',
+        inferenceId: 'fal-ai/veo3.1::req-x',
+        status: 'error',
+      });
+    });
+
+    it('surfaces a plain string payload.detail when there is no body.error', async () => {
+      const result = await instance.handleCreateVideoWebhook({
+        body: {
+          payload: { detail: 'plain text reason' },
+          request_id: 'req-x',
+          status: 'ERROR',
+        },
+        query,
+      });
+      expect(result).toEqual({
+        error: 'plain text reason',
+        inferenceId: 'fal-ai/veo3.1::req-x',
+        status: 'error',
       });
     });
   });
