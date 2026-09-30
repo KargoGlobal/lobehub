@@ -1477,6 +1477,54 @@ describe('LobeFalAI', () => {
     });
   });
 
+  describe('createVideo 422 handling', () => {
+    it('surfaces fal validation detail text on the thrown payload', async () => {
+      const error: any = new Error('Unprocessable Entity');
+      error.status = 422;
+      error.body = {
+        detail: [
+          {
+            loc: ['body', 'image_url'],
+            msg: 'Input image was flagged by the safety filter',
+            type: 'content_policy_violation',
+          },
+        ],
+      };
+      (mockFal.queue.submit as any).mockRejectedValueOnce(error);
+
+      await expect(
+        instance.createVideo({
+          model: 'fal-ai/veo3.1',
+          params: { imageUrl: 'https://example.com/a.png', prompt: 'a test' },
+        } as any),
+      ).rejects.toMatchObject({
+        errorType: 'ProviderBizError',
+        error: {
+          message:
+            'The request content violates content policy. Please modify your prompt and try again.',
+        },
+      });
+    });
+
+    it('joins non-policy detail messages into the thrown message', async () => {
+      const error: any = new Error('Unprocessable Entity');
+      error.status = 422;
+      error.body = {
+        detail: [
+          { loc: ['body', 'duration'], msg: "Input should be '4s', '6s' or '8s'", type: 'enum' },
+        ],
+      };
+      (mockFal.queue.submit as any).mockRejectedValueOnce(error);
+
+      await expect(
+        instance.createVideo({ model: 'fal-ai/veo3.1', params: { prompt: 'a test' } } as any),
+      ).rejects.toMatchObject({
+        errorType: 'ProviderBizError',
+        error: { message: "duration: Input should be '4s', '6s' or '8s'" },
+      });
+    });
+  });
+
   describe('handlePollVideoStatus', () => {
     it('should return pending while the queue is still working', async () => {
       (mockFal.queue.status as any).mockResolvedValue({ status: 'IN_PROGRESS' });

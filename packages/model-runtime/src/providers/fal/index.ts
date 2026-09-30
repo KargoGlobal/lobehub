@@ -31,6 +31,32 @@ const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/', 'dec
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
 
+const CONTENT_POLICY_MESSAGE =
+  'The request content violates content policy. Please modify your prompt and try again.';
+
+/**
+ * fal returns 422 with `body.detail` (pydantic-style array or a string). The client
+ * only puts the HTTP status text in `message`, so pull the real reason out here.
+ */
+const describeFalValidationError = (error: unknown): string | undefined => {
+  if (!(error instanceof Error) || !('status' in error) || (error as any).status !== 422) return;
+  const body = 'body' in error ? (error as any).body : undefined;
+  const detail = body?.detail;
+  if (typeof detail === 'string') return detail;
+  if (!Array.isArray(detail) || detail.length === 0) return;
+  if (detail.some((d: any) => d?.type === 'content_policy_violation'))
+    return CONTENT_POLICY_MESSAGE;
+  return detail
+    .map((d: any) => {
+      const field = Array.isArray(d?.loc)
+        ? d.loc.filter((p: unknown) => p !== 'body').join('.')
+        : '';
+      const msg = typeof d?.msg === 'string' ? d.msg : JSON.stringify(d);
+      return field ? `${field}: ${msg}` : msg;
+    })
+    .join('; ');
+};
+
 // MiniMax H3 family on fal (`minimax/h3`, `minimax/h3-max`). These endpoints
 // differ from the Veo-style ones: duration is an integer, the text-to-video and
 // image-to-video variants are separate endpoints, and they accept a start/end
@@ -469,20 +495,12 @@ export class LobeFalAI implements LobeRuntimeAI {
         });
       }
 
-      // 422 ValidationError with content_policy_violation — show a clean message
-      if (error instanceof Error && 'status' in error && error.status === 422) {
-        const body = 'body' in error ? (error as any).body : undefined;
-        const hasContentPolicyViolation =
-          Array.isArray(body?.detail) &&
-          body.detail.some((d: any) => d.type === 'content_policy_violation');
-
-        if (hasContentPolicyViolation) {
-          throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
-            error,
-            message:
-              'The request content violates content policy. Please modify your prompt and try again.',
-          });
-        }
+      const detail = describeFalValidationError(error);
+      if (detail) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+          error,
+          message: detail,
+        });
       }
 
       throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
@@ -534,6 +552,14 @@ export class LobeFalAI implements LobeRuntimeAI {
       if (error instanceof Error && 'status' in error && error.status === 401) {
         throw AgentRuntimeError.createError(AgentRuntimeErrorType.InvalidProviderAPIKey, {
           error,
+        });
+      }
+
+      const detail = describeFalValidationError(error);
+      if (detail) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+          error,
+          message: detail,
         });
       }
 
