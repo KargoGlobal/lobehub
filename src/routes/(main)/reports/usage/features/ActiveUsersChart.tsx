@@ -1,4 +1,5 @@
 import { BarChart } from '@lobehub/charts';
+import { Text } from '@lobehub/ui/base-ui';
 import { memo, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -28,6 +29,9 @@ const ActiveUsersChart = memo<ActiveUsersChartProps>(({ data, loading }) => {
 
   return (
     <StatsFormGroup fontSize={16} title={t('chart.activeUsers.title')}>
+      <Text fontSize={12} type={'secondary'}>
+        {t('chart.activeUsers.note')}
+      </Text>
       <BarChart
         categories={[active, generating]}
         data={rows}

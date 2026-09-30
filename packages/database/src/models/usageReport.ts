@@ -264,7 +264,9 @@ export class UsageReportModel {
         from r where ${rowFilters(f)}
       ),
       act as (
-        select day, user_id from gen
+        select to_char(date_trunc('day', created_at at time zone 'UTC'), 'YYYY-MM-DD') as day, user_id
+          from generation_batches
+          where created_at >= ${start}::timestamptz and created_at < ${end}::timestamptz
         union
         select to_char(date_trunc('day', ${authSessionActivityAt}), 'YYYY-MM-DD'), auth_sessions.user_id
           from auth_sessions

@@ -266,6 +266,15 @@ describe('UsageReportModel series and breakdowns', () => {
     expect(byDay['2026-01-10'].generatingUsers).toBe(2);
   });
 
+  it('activeUsersByDay keeps the any-activity series unfiltered while generatingUsers respects filters', async () => {
+    const rows = await model.activeUsersByDay({ ...RANGE, mediaType: 'video' });
+    const byDay = Object.fromEntries(rows.map((r) => [r.day, r]));
+    // No video generations on 01-08, but activeUsers still reflects all activity (U1 gen + U3 last_active).
+    expect(byDay['2026-01-08']).toEqual({ activeUsers: 2, day: '2026-01-08', generatingUsers: 0 });
+    // Only U1's video (g4) matches the media type filter on 01-10.
+    expect(byDay['2026-01-10'].generatingUsers).toBe(1);
+  });
+
   it('byUser aggregates per user with top model and fail counts', async () => {
     const rows = await model.byUser(RANGE);
     const u1 = rows.find((r) => r.userId === U1)!;

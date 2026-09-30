@@ -6,7 +6,10 @@ export interface CsvColumn {
 const escapeCell = (value: unknown): string => {
   if (value === null || value === undefined) return '';
   const text = typeof value === 'string' ? value : String(value);
-  return /[",\n\r]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+  // Prefix a guard quote so a leading =, +, -, @, tab or CR can't be read as a
+  // formula by the spreadsheet app that opens this CSV.
+  const guarded = /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
+  return /[",\n\r]/.test(guarded) ? `"${guarded.replaceAll('"', '""')}"` : guarded;
 };
 
 export const toCsv = (rows: Record<string, unknown>[], columns: CsvColumn[]): string =>

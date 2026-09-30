@@ -3,6 +3,7 @@ import { Flexbox, Icon } from '@lobehub/ui';
 import { Avatar, Button, Text } from '@lobehub/ui/base-ui';
 import { type TableColumnType } from 'antd';
 import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
 import { DownloadIcon } from 'lucide-react';
 import { memo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -14,6 +15,8 @@ import { type CsvColumn, downloadCsv, toCsv } from '../csv';
 import EmptyState from './EmptyState';
 import { formatCount, formatPercent, formatUsd } from './format';
 import type { UserRow } from './types';
+
+dayjs.extend(utc);
 
 const byNumber =
   (key: 'error' | 'estimatedCostUsd' | 'generations' | 'images' | 'videos') =>
@@ -119,7 +122,7 @@ const UserTable = memo<UserTableProps>(({ data, loading }) => {
     {
       dataIndex: 'lastActiveAt',
       key: 'lastActiveAt',
-      render: (value: string) => dayjs(value).format('YYYY-MM-DD'),
+      render: (value: string) => dayjs.utc(value).format('YYYY-MM-DD'),
       sorter: (a: UserRow, b: UserRow) => a.lastActiveAt.localeCompare(b.lastActiveAt),
       title: t('users.column.lastActive'),
     },

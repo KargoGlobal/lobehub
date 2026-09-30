@@ -16,4 +16,18 @@ describe('toCsv', () => {
     );
     expect(csv).toBe('A,B,C,D,E\r\n"x,y","say ""hi""","line\nbreak",3,');
   });
+
+  it('guards formula-injection prefixes with a leading single quote', () => {
+    const csv = toCsv(
+      [{ a: '=HYPERLINK("x")', b: '+1', c: '-2', d: '@x', e: 'plain' }],
+      [
+        { key: 'a', label: 'A' },
+        { key: 'b', label: 'B' },
+        { key: 'c', label: 'C' },
+        { key: 'd', label: 'D' },
+        { key: 'e', label: 'E' },
+      ],
+    );
+    expect(csv).toBe('A,B,C,D,E\r\n"\'=HYPERLINK(""x"")",\'+1,\'-2,\'@x,plain');
+  });
 });

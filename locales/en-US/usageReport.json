@@ -1,6 +1,7 @@
 {
   "chart.activeUsers.active": "Active (any activity)",
   "chart.activeUsers.generating": "Generating",
+  "chart.activeUsers.note": "Sign-in activity counts a user on their last-seen day only; generating counts every day they generated.",
   "chart.activeUsers.title": "Active users by day",
   "chart.generations.all": "All",
   "chart.generations.image": "Images",
