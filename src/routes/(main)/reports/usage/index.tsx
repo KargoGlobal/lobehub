@@ -91,32 +91,35 @@ const UsageReportPage = () => {
   const isLoading = (q: { isLoading: boolean }) => accessLoading || q.isLoading;
 
   return (
-    <Flexbox gap={24} padding={24} style={{ margin: '0 auto', maxWidth: 1280, width: '100%' }}>
-      <Flexbox horizontal align={'center'} gap={12} justify={'space-between'} wrap={'wrap'}>
-        <Flexbox gap={4}>
-          <Text as={'h2'} fontSize={24} style={{ margin: 0 }} weight={600}>
-            {t('title')}
-          </Text>
-          <Text type={'secondary'}>
-            {t('subtitle', { end: filters.endAt, start: filters.startAt })}
-          </Text>
+    // The main layout clips overflow, so the page owns its scroll region.
+    <Flexbox flex={1} height={'100%'} style={{ overflowY: 'auto' }} width={'100%'}>
+      <Flexbox gap={24} padding={24} style={{ margin: '0 auto', maxWidth: 1280, width: '100%' }}>
+        <Flexbox horizontal align={'center'} gap={12} justify={'space-between'} wrap={'wrap'}>
+          <Flexbox gap={4}>
+            <Text as={'h2'} fontSize={24} style={{ margin: 0 }} weight={600}>
+              {t('title')}
+            </Text>
+            <Text type={'secondary'}>
+              {t('subtitle', { end: filters.endAt, start: filters.startAt })}
+            </Text>
+          </Flexbox>
+          <Button onClick={() => queries.forEach((q) => q.mutate())}>{t('refresh')}</Button>
         </Flexbox>
-        <Button onClick={() => queries.forEach((q) => q.mutate())}>{t('refresh')}</Button>
+        <FilterBar options={options.data} setState={setState} state={state} />
+        {firstError && (
+          <Alert showIcon title={firstError.message ?? String(firstError)} type={'error'} />
+        )}
+        <SummaryTiles data={summary.data} loading={isLoading(summary)} />
+        <ActiveUsersChart data={activeUsers.data} loading={isLoading(activeUsers)} />
+        <GenerationsChart data={generations.data} loading={isLoading(generations)} />
+        <RankLists
+          failureReasons={reasons.data}
+          loading={isLoading(models) || isLoading(reasons)}
+          models={models.data}
+        />
+        <UserTable data={users.data} loading={isLoading(users)} />
+        <FailuresTable data={failures.data} loading={isLoading(failures)} />
       </Flexbox>
-      <FilterBar options={options.data} setState={setState} state={state} />
-      {firstError && (
-        <Alert showIcon title={firstError.message ?? String(firstError)} type={'error'} />
-      )}
-      <SummaryTiles data={summary.data} loading={isLoading(summary)} />
-      <ActiveUsersChart data={activeUsers.data} loading={isLoading(activeUsers)} />
-      <GenerationsChart data={generations.data} loading={isLoading(generations)} />
-      <RankLists
-        failureReasons={reasons.data}
-        loading={isLoading(models) || isLoading(reasons)}
-        models={models.data}
-      />
-      <UserTable data={users.data} loading={isLoading(users)} />
-      <FailuresTable data={failures.data} loading={isLoading(failures)} />
     </Flexbox>
   );
 };
