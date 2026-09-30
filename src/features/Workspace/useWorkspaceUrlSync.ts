@@ -31,6 +31,7 @@ const RESERVED_FIRST_SEGMENTS = new Set([
   'eval',
   'tasks',
   'task',
+  'reports',
   // Personal-only:
   'apps',
   'settings',
