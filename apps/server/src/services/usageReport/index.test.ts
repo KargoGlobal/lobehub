@@ -20,6 +20,11 @@ describe('eachUtcDay', () => {
   it('lists every day in [start, end)', () => {
     expect(eachUtcDay(range)).toEqual(['2026-01-08', '2026-01-09', '2026-01-10']);
   });
+
+  it('keeps the same first day regardless of a non-midnight start time', () => {
+    const r = { end: new Date('2026-01-09T00:00:00Z'), start: new Date('2026-01-08T15:30:00Z') };
+    expect(eachUtcDay(r)).toEqual(['2026-01-08']);
+  });
 });
 
 describe('UsageReportService', () => {
@@ -86,7 +91,7 @@ describe('UsageReportService', () => {
     ]);
   });
 
-  it('byUser attaches per-user cost and fail rate', async () => {
+  it('byUser attaches per-user cost and fail rate, scoped to that user only', async () => {
     m.byUser.mockResolvedValue([
       {
         active: 0,
@@ -104,7 +109,25 @@ describe('UsageReportService', () => {
         userId: 'u',
         videos: 0,
       },
+      {
+        active: 0,
+        avatar: null,
+        cancelled: 0,
+        createdAt: 'x',
+        email: 'b',
+        error: 0,
+        generations: 5,
+        images: 5,
+        lastActiveAt: 'x',
+        name: 'B',
+        success: 5,
+        topModel: 'm/flat',
+        userId: 'u2',
+        videos: 0,
+      },
     ]);
+    // decoy row for u2 ensures byUser's per-user filter is actually exercised:
+    // if the filter were dropped, u's cost would wrongly include u2's rows too.
     m.costInputs.mockResolvedValue([
       {
         megapixels: 0,
@@ -114,18 +137,51 @@ describe('UsageReportService', () => {
         successCount: 2,
         userId: 'u',
       },
+      {
+        megapixels: 0,
+        mediaType: 'image',
+        model: 'm/flat',
+        seconds: 0,
+        successCount: 5,
+        userId: 'u2',
+      },
     ]);
-    const [u] = await service.byUser(range);
+    const [u, u2] = await service.byUser(range);
     expect(u.estimatedCostUsd).toBe(1);
     expect(u.failRate).toBeCloseTo(1 / 3);
+    expect(u2.estimatedCostUsd).toBe(2.5);
   });
 
-  it('byModel attaches cost and fail rate, null when no finished rows', async () => {
+  it('byModel attaches cost and fail rate per model+mediaType, null when no finished rows', async () => {
     m.byModel.mockResolvedValue([
-      { error: 0, generations: 1, mediaType: 'image', model: 'm/flat', provider: 'p', success: 0 },
+      { error: 0, generations: 2, mediaType: 'image', model: 'm/flat', provider: 'p', success: 2 },
+      { error: 1, generations: 2, mediaType: 'video', model: 'm/flat', provider: 'p', success: 1 },
+      { error: 0, generations: 0, mediaType: 'image', model: 'm/none', provider: 'p', success: 0 },
     ]);
-    m.costInputs.mockResolvedValue([]);
-    const [r] = await service.byModel(range);
-    expect(r).toMatchObject({ estimatedCostUsd: 0, failRate: null });
+    // decoy row for the video mediaType ensures byModel's model+mediaType filter is
+    // actually exercised: if the filter were dropped, the image row's cost would
+    // wrongly include the video row's successCount too.
+    m.costInputs.mockResolvedValue([
+      {
+        megapixels: 0,
+        mediaType: 'image',
+        model: 'm/flat',
+        seconds: 0,
+        successCount: 2,
+        userId: 'u',
+      },
+      {
+        megapixels: 0,
+        mediaType: 'video',
+        model: 'm/flat',
+        seconds: 0,
+        successCount: 1,
+        userId: 'u',
+      },
+    ]);
+    const [imageRow, videoRow, noneRow] = await service.byModel(range);
+    expect(imageRow.estimatedCostUsd).toBe(1);
+    expect(videoRow).toMatchObject({ estimatedCostUsd: 0.5, failRate: 0.5 });
+    expect(noneRow).toMatchObject({ estimatedCostUsd: 0, failRate: null });
   });
 });
