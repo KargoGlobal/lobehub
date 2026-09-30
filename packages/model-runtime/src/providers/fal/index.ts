@@ -31,6 +31,40 @@ const FAL_ENDPOINT_NAMESPACES = ['fal-ai/', 'openai/', 'bria/', 'minimax/', 'dec
 const resolveFalEndpoint = (model: string) =>
   FAL_ENDPOINT_NAMESPACES.some((ns) => model.startsWith(ns)) ? model : `fal-ai/${model}`;
 
+const CONTENT_POLICY_MESSAGE =
+  'The request content violates content policy. Please modify your prompt and try again.';
+
+/**
+ * fal's validation `detail` (pydantic-style array or a string) carries the real
+ * reason behind a 422 — used both for the submit-path error (`body.detail`) and
+ * for the webhook's async failure payload (`body.payload.detail`).
+ */
+const describeFalDetail = (detail: unknown): string | undefined => {
+  if (typeof detail === 'string') return detail;
+  if (!Array.isArray(detail) || detail.length === 0) return;
+  if (detail.some((d: any) => d?.type === 'content_policy_violation'))
+    return CONTENT_POLICY_MESSAGE;
+  return detail
+    .map((d: any) => {
+      const field = Array.isArray(d?.loc)
+        ? d.loc.filter((p: unknown) => p !== 'body').join('.')
+        : '';
+      const msg = typeof d?.msg === 'string' ? d.msg : JSON.stringify(d);
+      return field ? `${field}: ${msg}` : msg;
+    })
+    .join('; ');
+};
+
+/**
+ * fal returns 422 with `body.detail`. The client only puts the HTTP status text
+ * in `message`, so pull the real reason out here.
+ */
+const describeFalValidationError = (error: unknown): string | undefined => {
+  if (!(error instanceof Error) || !('status' in error) || (error as any).status !== 422) return;
+  const body = 'body' in error ? (error as any).body : undefined;
+  return describeFalDetail(body?.detail);
+};
+
 // MiniMax H3 family on fal (`minimax/h3`, `minimax/h3-max`). These endpoints
 // differ from the Veo-style ones: duration is an integer, the text-to-video and
 // image-to-video variants are separate endpoints, and they accept a start/end
@@ -469,20 +503,12 @@ export class LobeFalAI implements LobeRuntimeAI {
         });
       }
 
-      // 422 ValidationError with content_policy_violation — show a clean message
-      if (error instanceof Error && 'status' in error && error.status === 422) {
-        const body = 'body' in error ? (error as any).body : undefined;
-        const hasContentPolicyViolation =
-          Array.isArray(body?.detail) &&
-          body.detail.some((d: any) => d.type === 'content_policy_violation');
-
-        if (hasContentPolicyViolation) {
-          throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
-            error,
-            message:
-              'The request content violates content policy. Please modify your prompt and try again.',
-          });
-        }
+      const detail = describeFalValidationError(error);
+      if (detail) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+          error,
+          message: detail,
+        });
       }
 
       throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, { error });
@@ -534,6 +560,14 @@ export class LobeFalAI implements LobeRuntimeAI {
       if (error instanceof Error && 'status' in error && error.status === 401) {
         throw AgentRuntimeError.createError(AgentRuntimeErrorType.InvalidProviderAPIKey, {
           error,
+        });
+      }
+
+      const detail = describeFalValidationError(error);
+      if (detail) {
+        throw AgentRuntimeError.createError(AgentRuntimeErrorType.ProviderBizError, {
+          error,
+          message: detail,
         });
       }
 
@@ -604,11 +638,8 @@ export class LobeFalAI implements LobeRuntimeAI {
     const inferenceId = `${endpoint}${FAL_INFERENCE_ID_SEPARATOR}${requestId}`;
 
     if (body.status === 'ERROR') {
-      const detail = body.payload?.detail;
-      const message =
-        body.error ??
-        body.payload_error ??
-        (typeof detail === 'string' ? detail : JSON.stringify(detail ?? 'unknown error'));
+      const detailText = describeFalDetail(body.payload?.detail);
+      const message = detailText ?? body.error ?? body.payload_error ?? 'unknown error';
       return { error: message, inferenceId, status: 'error' };
     }
 
@@ -650,7 +681,11 @@ export class LobeFalAI implements LobeRuntimeAI {
       return { status: 'success', videoUrl };
     } catch (error) {
       log('fal video task %s poll failed: %O', requestId, error);
-      return { error: error instanceof Error ? error.message : String(error), status: 'failed' };
+      const detail = describeFalValidationError(error);
+      return {
+        error: detail ?? (error instanceof Error ? error.message : String(error)),
+        status: 'failed',
+      };
     }
   }
 }

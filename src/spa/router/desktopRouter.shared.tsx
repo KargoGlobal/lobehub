@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BarChart3,
   BrainCircuit,
   Download,
   FilePenIcon,
@@ -806,6 +807,17 @@ export const sharedMainAreaChildren: RouteObject[] = [
     errorElement: <ErrorBoundary />,
     handle: { meta: routeMeta({ Skeleton: GenerationSkeleton }) },
     path: 'image',
+  },
+
+  // Reports routes
+  {
+    element: dynamicElement(
+      () => import('@/routes/(main)/reports/usage'),
+      'Desktop > Reports > Usage',
+    ),
+    errorElement: <ErrorBoundary />,
+    handle: { meta: routeMeta({ icon: BarChart3, titleKey: 'navigation.usageReport' }) },
+    path: 'reports/usage',
   },
 
   ...BusinessDesktopRoutesWithMainLayout,

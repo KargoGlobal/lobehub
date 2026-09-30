@@ -49,6 +49,7 @@ export default {
   'navigation.goals': 'Goals',
   'navigation.topics': 'Topics',
   'navigation.unpin': 'Unpin',
+  'navigation.usageReport': 'Usage report',
   'navigation.verifyReports': 'Verification Reports',
   'notification.finishChatGeneration': 'AI message generation completed',
   'tab.closeCurrentTab': 'Close Tab',

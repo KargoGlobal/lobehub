@@ -962,6 +962,16 @@ export const statsKeys = {
   welcome: def('stats:welcome', () => ['stats:welcome']),
 };
 
+// ---- usage report (admin-only usage dashboard) ---------------------------
+export const usageReportKeys = {
+  access: def('usageReport:access', () => ['usageReport:access']),
+  data: def('usageReport:data', (section: string, filters: string) => [
+    'usageReport:data',
+    section,
+    filters,
+  ]),
+};
+
 // ---- messenger / platform integration -----------------------------------
 export const messengerKeys = {
   agentsForBinding: def('messenger:agentsForBinding', (workspaceId: string | null | undefined) => [
@@ -1376,6 +1386,7 @@ export const swrKeys = {
   topicComment: topicCommentKeys,
   documentComment: documentCommentKeys,
   topicAction: topicActionKeys,
+  usageReport: usageReportKeys,
   user: userKeys,
   userMemory: userMemoryKeys,
   verify: verifyKeys,

@@ -89,6 +89,7 @@ import { topicRouter } from './topic';
 import { topicCommentRouter } from './topicComment';
 import { uploadRouter } from './upload';
 import { usageRouter } from './usage';
+import { usageReportRouter } from './usageReport';
 import { userRouter } from './user';
 import { userMemoriesRouter } from './userMemories';
 import { userMemoryRouter } from './userMemory';
@@ -171,6 +172,7 @@ export const lambdaRouter = router({
   topicComment: topicCommentRouter,
   upload: uploadRouter,
   usage: usageRouter,
+  usageReport: usageReportRouter,
   user: userRouter,
   userMemories: userMemoriesRouter,
   userMemory: userMemoryRouter,

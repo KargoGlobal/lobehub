@@ -32,6 +32,8 @@ export const config = {
     '/settings(.*)',
     '/image',
     '/video',
+    '/reports',
+    '/reports(.*)',
     '/resource',
     '/resource(.*)',
     '/profile(.*)',
