@@ -70,6 +70,18 @@ const generationRows = (range: UsageReportRange): SQL => sql`
     and g.created_at < ${range.end.toISOString()}::timestamptz
 `;
 
+/**
+ * `auth_sessions.created_at` / `updated_at` are `timestamp without time zone`
+ * (see `packages/database/src/schemas/betterAuth.ts`), unlike every other
+ * timestamp column this query touches. Comparing a naive value straight
+ * against a `timestamptz` bound lets Postgres apply the session's `TimeZone`
+ * setting, silently shifting results on a non-UTC connection. `at time zone
+ * 'UTC'` instead reinterprets the naive value explicitly as UTC wall-clock
+ * time, matching how every other timestamp in this report is treated.
+ * Exported so Task 4's `activeUsersByDay` can reuse the same expression.
+ */
+export const authSessionActivityAt: SQL = sql`(greatest(auth_sessions.created_at, coalesce(auth_sessions.updated_at, auth_sessions.created_at)) at time zone 'UTC')`;
+
 const rowFilters = (f: UsageReportFilters): SQL => {
   const parts: SQL[] = [sql`true`];
   if (f.mediaType) parts.push(sql`r.media_type = ${f.mediaType}`);
@@ -115,8 +127,8 @@ export class UsageReportModel {
           where created_at >= ${start}::timestamptz and created_at < ${end}::timestamptz
         union
         select user_id from auth_sessions
-          where greatest(created_at, coalesce(updated_at, created_at)) >= ${start}::timestamptz
-            and greatest(created_at, coalesce(updated_at, created_at)) < ${end}::timestamptz
+          where ${authSessionActivityAt} >= ${start}::timestamptz
+            and ${authSessionActivityAt} < ${end}::timestamptz
         union
         select id from users where last_active_at >= ${start}::timestamptz and last_active_at < ${end}::timestamptz
       )

@@ -1,9 +1,17 @@
 // @vitest-environment node
 import { AsyncTaskStatus, AsyncTaskType } from '@lobechat/types';
+import { sql } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { getTestDB } from '../../core/getTestDB';
-import { asyncTasks, generationBatches, generations, generationTopics, users } from '../../schemas';
+import {
+  asyncTasks,
+  generationBatches,
+  generations,
+  generationTopics,
+  session,
+  users,
+} from '../../schemas';
 import type { LobeChatDatabase } from '../../type';
 import { UsageReportModel } from '../usageReport';
 
@@ -163,6 +171,7 @@ afterEach(async () => {
   await serverDB.delete(generationBatches);
   await serverDB.delete(generationTopics);
   await serverDB.delete(asyncTasks);
+  await serverDB.delete(session);
   await serverDB.delete(users);
 });
 
@@ -195,5 +204,40 @@ describe('UsageReportModel.summaryCounts', () => {
   it('counts signups inside the range', async () => {
     const s = await model.summaryCounts({ end: day('2026-01-06', 0), start: day('2026-01-01', 0) });
     expect(s.newSignups).toBe(2);
+  });
+
+  it('folds auth_sessions activity into activeUsers without a timezone shift', async () => {
+    // U4 signed in only via an auth session inside RANGE; last_active_at and every
+    // generation are well outside it, so this exercises the auth_sessions branch alone.
+    // auth_sessions.created_at/updated_at are `timestamp without time zone`, so a naive
+    // comparison against the timestamptz bounds gets reinterpreted through the current
+    // session TimeZone by Postgres. Placing the session an hour before RANGE.end and
+    // running under a non-UTC session TimeZone reproduces that shift: America/New_York
+    // (UTC-5) pushes 2026-01-10T23:00 to 2026-01-11T04:00, past RANGE.end, so the buggy
+    // comparison drops U4 from activeUsers. Pinning the comparison to UTC fixes it.
+    const U4 = 'ur-user-4';
+    await serverDB.insert(users).values({
+      createdAt: day('2025-12-01'),
+      email: 'four@example.com',
+      id: U4,
+      lastActiveAt: day('2025-12-01'),
+    });
+    await serverDB.insert(session).values({
+      createdAt: day('2026-01-10', 23),
+      expiresAt: day('2026-02-09'),
+      id: 'sess-ur-user-4',
+      token: 'token-ur-user-4',
+      updatedAt: day('2026-01-10', 23),
+      userId: U4,
+    });
+
+    await serverDB.execute(sql.raw(`SET TIME ZONE 'America/New_York'`));
+    try {
+      const s = await model.summaryCounts(RANGE);
+      expect(s.activeUsers).toBe(4);
+      expect(s.generatingUsers).toBe(2);
+    } finally {
+      await serverDB.execute(sql.raw(`SET TIME ZONE 'UTC'`));
+    }
   });
 });
