@@ -55,6 +55,7 @@
   "navigation.tasks": "Tasks",
   "navigation.topics": "Topics",
   "navigation.unpin": "Unpin",
+  "navigation.usageReport": "Usage report",
   "navigation.verifyReports": "Verification Reports",
   "notification.finishChatGeneration": "AI message generation completed",
   "proxy.auth": "Authentication Required",

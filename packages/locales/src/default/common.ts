@@ -614,6 +614,7 @@ export default {
   'tab.me': 'Me',
   'tab.memory': 'Memory',
   'tab.pages': 'Pages',
+  'tab.reports': 'Reports',
   'tab.resource': 'Resources',
   'tab.search': 'Search',
   'tab.setting': 'Settings',

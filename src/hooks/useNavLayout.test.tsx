@@ -37,6 +37,13 @@ vi.mock('@/business/client/hooks/useActiveWorkspaceSlug', () => ({
   useActiveWorkspaceSlug: () => mocks.activeWorkspaceSlug,
 }));
 
+// Keeps this suite hermetic: without this, useNavLayout's new
+// useUsageReportAccess call would hit the real SWR + tRPC client and fire a
+// network request during render.
+vi.mock('@/hooks/useUsageReportAccess', () => ({
+  useUsageReportAccess: () => ({ allowed: false, isLoading: false }),
+}));
+
 describe('useNavLayout', () => {
   beforeEach(() => {
     mocks.activeWorkspaceSlug = null;
@@ -61,5 +68,14 @@ describe('useNavLayout', () => {
     const memoryItem = result.current.bottomMenuItems.find((item) => item.key === 'memory');
 
     expect(memoryItem?.hidden).toBe(true);
+  });
+
+  it('hides Reports unless usage-report access is granted', async () => {
+    const { useNavLayout } = await import('./useNavLayout');
+    const { result } = renderHook(() => useNavLayout());
+
+    const reportsItem = result.current.bottomMenuItems.find((item) => item.key === 'reports');
+
+    expect(reportsItem?.hidden).toBe(true);
   });
 });

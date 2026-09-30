@@ -1,9 +1,10 @@
-import { HomeIcon, SearchIcon } from 'lucide-react';
+import { BarChart3, HomeIcon, SearchIcon } from 'lucide-react';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useActiveWorkspaceSlug } from '@/business/client/hooks/useActiveWorkspaceSlug';
 import { getRouteById } from '@/config/routes';
+import { useUsageReportAccess } from '@/hooks/useUsageReportAccess';
 import { useGlobalStore } from '@/store/global';
 import { SidebarTabKey } from '@/store/global/initialState';
 import { featureFlagsSelectors, useServerConfigStore } from '@/store/serverConfig';
@@ -38,6 +39,7 @@ export const useNavLayout = (): NavLayout => {
   const toggleCommandMenu = useGlobalStore((s) => s.toggleCommandMenu);
   const { showMarket, hideGitHub } = useServerConfigStore(featureFlagsSelectors);
   const activeWorkspaceSlug = useActiveWorkspaceSlug();
+  const { allowed: canViewReports } = useUsageReportAccess();
 
   const topNavItems = useMemo(
     () =>
@@ -99,8 +101,15 @@ export const useNavLayout = (): NavLayout => {
           title: t('tab.memory'),
           url: '/memory',
         },
+        {
+          hidden: !canViewReports,
+          icon: BarChart3,
+          key: SidebarTabKey.Reports,
+          title: t('tab.reports'),
+          url: '/reports/usage',
+        },
       ] as NavItem[],
-    [t, showMarket, activeWorkspaceSlug],
+    [t, showMarket, activeWorkspaceSlug, canViewReports],
   );
 
   const footer = useMemo(
