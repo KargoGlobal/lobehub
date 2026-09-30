@@ -241,3 +241,97 @@ describe('UsageReportModel.summaryCounts', () => {
     }
   });
 });
+
+describe('UsageReportModel series and breakdowns', () => {
+  it('generationsByDay groups by UTC day, media type and outcome', async () => {
+    const rows = await model.generationsByDay(RANGE);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        { count: 1, day: '2026-01-08', mediaType: 'image', outcome: 'success' },
+        { count: 1, day: '2026-01-09', mediaType: 'image', outcome: 'success' },
+        { count: 1, day: '2026-01-09', mediaType: 'image', outcome: 'error' },
+        { count: 1, day: '2026-01-09', mediaType: 'video', outcome: 'cancelled' },
+        { count: 1, day: '2026-01-10', mediaType: 'video', outcome: 'success' },
+        { count: 1, day: '2026-01-10', mediaType: 'image', outcome: 'active' },
+      ]),
+    );
+    expect(rows).toHaveLength(6);
+  });
+
+  it('activeUsersByDay counts generating and any-activity users', async () => {
+    const rows = await model.activeUsersByDay(RANGE);
+    const byDay = Object.fromEntries(rows.map((r) => [r.day, r]));
+    expect(byDay['2026-01-08']).toEqual({ activeUsers: 2, day: '2026-01-08', generatingUsers: 1 }); // U1 gen + U3 last_active
+    expect(byDay['2026-01-09'].generatingUsers).toBe(2);
+    expect(byDay['2026-01-10'].generatingUsers).toBe(2);
+  });
+
+  it('byUser aggregates per user with top model and fail counts', async () => {
+    const rows = await model.byUser(RANGE);
+    const u1 = rows.find((r) => r.userId === U1)!;
+    expect(u1).toMatchObject({
+      active: 0,
+      cancelled: 0,
+      email: 'one@example.com',
+      error: 1,
+      generations: 4,
+      images: 3,
+      name: 'One',
+      success: 3,
+      topModel: 'fal-ai/flux/schnell',
+      videos: 1,
+    });
+    const u2 = rows.find((r) => r.userId === U2)!;
+    expect(u2).toMatchObject({
+      active: 1,
+      cancelled: 1,
+      error: 0,
+      generations: 2,
+      name: 'two',
+      success: 0,
+    });
+    expect(rows.find((r) => r.userId === U3)).toBeUndefined();
+  });
+
+  it('byModel sorts by generations desc', async () => {
+    const rows = await model.byModel(RANGE);
+    expect(rows[0]).toEqual({
+      error: 0,
+      generations: 3,
+      mediaType: 'image',
+      model: 'fal-ai/flux/schnell',
+      provider: 'fal',
+      success: 2,
+    });
+    expect(rows.map((r) => r.model)).toEqual([
+      'fal-ai/flux/schnell',
+      'fal-ai/veo3.1',
+      'fal-ai/nano-banana-2',
+    ]);
+  });
+
+  it('costInputs returns success rows with megapixels and seconds', async () => {
+    const rows = await model.costInputs(RANGE);
+    expect(rows).toEqual(
+      expect.arrayContaining([
+        {
+          megapixels: 2.097152,
+          mediaType: 'image',
+          model: 'fal-ai/flux/schnell',
+          seconds: 0,
+          successCount: 2,
+          userId: U1,
+        },
+        {
+          megapixels: 0,
+          mediaType: 'video',
+          model: 'fal-ai/veo3.1',
+          seconds: 8,
+          successCount: 1,
+          userId: U1,
+        },
+      ]),
+    );
+    expect(rows.find((r) => r.userId === U2)).toBeUndefined(); // no successes in range
+  });
+});
