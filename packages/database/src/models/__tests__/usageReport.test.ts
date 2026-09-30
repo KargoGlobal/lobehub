@@ -335,3 +335,38 @@ describe('UsageReportModel series and breakdowns', () => {
     expect(rows.find((r) => r.userId === U2)).toBeUndefined(); // no successes in range
   });
 });
+
+describe('UsageReportModel failures and options', () => {
+  it('failureReasons groups errors, excluding cancellations', async () => {
+    const rows = await model.failureReasons(RANGE);
+    expect(rows).toEqual([
+      { count: 1, errorName: 'ProviderBizError', message: 'ProviderBizError happened' },
+    ]);
+  });
+
+  it('recentFailures lists error rows newest first with user and prompt', async () => {
+    const rows = await model.recentFailures(RANGE, 10);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      email: 'one@example.com',
+      errorName: 'ProviderBizError',
+      generationId: 'g3',
+      mediaType: 'image',
+      message: 'ProviderBizError happened',
+      model: 'fal-ai/nano-banana-2',
+      name: 'One',
+      prompt: 'prompt for g3',
+      userId: U1,
+    });
+  });
+
+  it('filterOptions lists models and users seen in range', async () => {
+    const o = await model.filterOptions(RANGE);
+    expect(o.models.map((m) => m.model).sort()).toEqual([
+      'fal-ai/flux/schnell',
+      'fal-ai/nano-banana-2',
+      'fal-ai/veo3.1',
+    ]);
+    expect(o.users.map((u) => u.userId).sort()).toEqual([U1, U2]);
+  });
+});

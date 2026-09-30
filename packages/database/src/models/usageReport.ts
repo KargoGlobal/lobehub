@@ -79,6 +79,30 @@ export interface UsageReportCostInputRow {
   userId: string;
 }
 
+export interface UsageReportFailureReasonRow {
+  count: number;
+  errorName: string;
+  message: string;
+}
+
+export interface UsageReportRecentFailureRow {
+  createdAt: string;
+  email: string | null;
+  errorName: string;
+  generationId: string;
+  mediaType: UsageReportMediaType;
+  message: string;
+  model: string;
+  name: string;
+  prompt: string;
+  userId: string;
+}
+
+export interface UsageReportFilterOptions {
+  models: { model: string; provider: string }[];
+  users: { email: string | null; name: string; userId: string }[];
+}
+
 const num = (v: unknown): number => (v === null || v === undefined ? 0 : Number(v));
 
 /**
@@ -129,6 +153,14 @@ const generationRows = (range: UsageReportRange): SQL => sql`
  * Exported so Task 4's `activeUsersByDay` can reuse the same expression.
  */
 export const authSessionActivityAt: SQL = sql`(greatest(auth_sessions.created_at, coalesce(auth_sessions.updated_at, auth_sessions.created_at)) at time zone 'UTC')`;
+
+const errorMessageExpr = sql`
+  coalesce(
+    case when jsonb_typeof(r.error->'body') = 'object' then r.error->'body'->>'detail' end,
+    case when jsonb_typeof(r.error->'body') = 'string' then r.error->>'body' end,
+    r.error->>'name',
+    'Unknown error'
+  )`;
 
 const rowFilters = (f: UsageReportFilters): SQL => {
   const parts: SQL[] = [sql`true`];
@@ -339,5 +371,78 @@ export class UsageReportModel {
       successCount: num(r.success_count),
       userId: String(r.user_id),
     }));
+  };
+
+  failureReasons = async (
+    f: UsageReportFilters,
+    limit = 15,
+  ): Promise<UsageReportFailureReasonRow[]> => {
+    const rows = await this.rows<Record<string, unknown>>(sql`
+      with r as (${generationRows(f)})
+      select coalesce(r.error->>'name', 'Unknown') as error_name,
+             left(${errorMessageExpr}, 160) as message,
+             count(*) as count
+      from r where ${rowFilters(f)} and r.outcome = 'error'
+      group by 1, 2
+      order by count desc, error_name
+      limit ${limit}
+    `);
+    return rows.map((r) => ({
+      count: num(r.count),
+      errorName: String(r.error_name),
+      message: String(r.message),
+    }));
+  };
+
+  recentFailures = async (
+    f: UsageReportFilters,
+    limit = 50,
+  ): Promise<UsageReportRecentFailureRow[]> => {
+    const rows = await this.rows<Record<string, unknown>>(sql`
+      with r as (${generationRows(f)})
+      select r.id, r.created_at, r.user_id, r.model, r.media_type,
+             coalesce(r.error->>'name', 'Unknown') as error_name,
+             ${errorMessageExpr} as message,
+             left(r.prompt, 200) as prompt,
+             u.email, u.full_name, u.username
+      from r join users u on u.id = r.user_id
+      where ${rowFilters(f)} and r.outcome = 'error'
+      order by r.created_at desc
+      limit ${limit}
+    `);
+    return rows.map((r) => ({
+      createdAt: new Date(r.created_at as string).toISOString(),
+      email: (r.email as string | null) ?? null,
+      errorName: String(r.error_name),
+      generationId: String(r.id),
+      mediaType: r.media_type as UsageReportMediaType,
+      message: String(r.message),
+      model: String(r.model),
+      name: String(r.full_name || r.username || r.email || r.user_id),
+      prompt: String(r.prompt ?? ''),
+      userId: String(r.user_id),
+    }));
+  };
+
+  filterOptions = async (range: UsageReportRange): Promise<UsageReportFilterOptions> => {
+    const models = await this.rows<Record<string, unknown>>(sql`
+      select distinct model, provider from generation_batches
+      where created_at >= ${range.start.toISOString()}::timestamptz and created_at < ${range.end.toISOString()}::timestamptz
+      order by model
+    `);
+    const users = await this.rows<Record<string, unknown>>(sql`
+      select distinct u.id as user_id, u.email, u.full_name, u.username
+      from generation_batches b join users u on u.id = b.user_id
+      where b.created_at >= ${range.start.toISOString()}::timestamptz and b.created_at < ${range.end.toISOString()}::timestamptz
+      order by u.email
+    `);
+    return {
+      models: models.map((m) => ({ model: String(m.model), provider: String(m.provider) })),
+      users: users.map((u) => ({
+        email: (u.email as string | null) ?? null,
+        name: String(u.full_name || u.username || u.email || u.user_id),
+        userId: String(u.user_id),
+      })),
+    };
   };
 }
