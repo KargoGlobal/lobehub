@@ -705,12 +705,12 @@ describe('imageRouter', () => {
       });
 
       it('should convert multiple imageUrls to S3 URLs in development mode', async () => {
-        mockGetKeyFromFullUrl
-          .mockResolvedValueOnce('files/image1.jpg')
-          .mockResolvedValueOnce('files/image2.jpg');
-        mockGetFullFileUrl
-          .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/files/image1.jpg')
-          .mockResolvedValueOnce('https://s3.amazonaws.com/bucket/files/image2.jpg');
+        mockGetKeyFromFullUrl.mockImplementation(async (url: string) =>
+          url.endsWith('/id1') ? 'files/image1.jpg' : 'files/image2.jpg',
+        );
+        mockGetFullFileUrl.mockImplementation(
+          async (key: string) => `https://s3.amazonaws.com/bucket/${key}`,
+        );
 
         const ctx = createMockCtx();
         const input = createDefaultInput({
@@ -746,6 +746,53 @@ describe('imageRouter', () => {
 
         expect(result.success).toBe(true);
         expect(mockGetFullFileUrl).toHaveBeenCalled();
+      });
+    });
+
+    describe('production environment URL conversion', () => {
+      beforeEach(() => {
+        vi.stubEnv('NODE_ENV', 'production');
+      });
+
+      afterEach(() => {
+        vi.unstubAllEnvs();
+      });
+
+      it('should convert file proxy URLs to S3 URLs in production', async () => {
+        mockGetKeyFromFullUrl.mockResolvedValue('files/image-key.jpg');
+        mockGetFullFileUrl.mockResolvedValue('https://s3.amazonaws.com/bucket/files/image-key.jpg');
+
+        const ctx = createMockCtx();
+        const input = createDefaultInput({
+          params: {
+            prompt: 'test prompt',
+            imageUrls: ['https://app.example.com/f/file-id'],
+          },
+        });
+
+        const caller = imageRouter.createCaller(ctx);
+        const result = await caller.createImage(input);
+
+        expect(result.success).toBe(true);
+        expect(mockGetFullFileUrl).toHaveBeenCalledWith('files/image-key.jpg');
+      });
+
+      it('should not rewrite external (non /f/) URLs', async () => {
+        mockGetKeyFromFullUrl.mockResolvedValue('T025L1LCX-avatar-512');
+
+        const ctx = createMockCtx();
+        const input = createDefaultInput({
+          params: {
+            prompt: 'test prompt',
+            imageUrl: 'https://ca.slack-edge.com/T025L1LCX-avatar-512',
+          },
+        });
+
+        const caller = imageRouter.createCaller(ctx);
+        const result = await caller.createImage(input);
+
+        expect(result.success).toBe(true);
+        expect(mockGetFullFileUrl).not.toHaveBeenCalled();
       });
     });
   });

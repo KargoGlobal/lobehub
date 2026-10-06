@@ -149,35 +149,34 @@ export const videoRouter = router({
         }
       }
 
-      // In development, convert localhost proxy URLs to S3 URLs for API access
+      // Convert app proxy URLs (/f/{id}) to direct S3 URLs so external providers can
+      // download reference images. The app domain is behind Vercel SSO, so providers
+      // (e.g. fal) cannot fetch proxy URLs in production either.
       let generationParams = params;
-      if (process.env.NODE_ENV === 'development') {
+      {
         const updates: Record<string, unknown> = {};
 
-        for (const field of VIDEO_INPUT_URL_FIELDS) {
-          const key = (configForDatabase as Record<string, unknown>)[field];
-          if (typeof key !== 'string' || !key || key.startsWith('http')) continue;
-          const s3Url = await fileService.getFullFileUrl(key);
-          if (s3Url) updates[field] = s3Url;
-        }
-
-        if (typeof params.imageUrl === 'string' && params.imageUrl) {
-          const s3Url = await fileService.getFullFileUrl(configForDatabase.imageUrl as string);
-          if (s3Url) {
-            log('Dev: converted imageUrl proxy URL to S3 URL: %s -> %s', params.imageUrl, s3Url);
-            updates.imageUrl = s3Url;
+        // Resolve our own file proxy URLs (/f/{fileId}) to provider-fetchable S3 URLs;
+        // external URLs pass through untouched.
+        const toProviderUrl = async (original: string): Promise<string> => {
+          try {
+            if (!new URL(original, 'http://local').pathname.startsWith('/f/')) return original;
+            const key = await fileService.getKeyFromFullUrl(original);
+            if (!key) return original;
+            return (await fileService.getFullFileUrl(key)) || original;
+          } catch (error) {
+            console.error('Error resolving provider URL for %s: %O', original, error);
+            return original;
           }
-        }
+        };
 
-        if (typeof params.endImageUrl === 'string' && params.endImageUrl) {
-          const s3Url = await fileService.getFullFileUrl(configForDatabase.endImageUrl as string);
-          if (s3Url) {
-            log(
-              'Dev: converted endImageUrl proxy URL to S3 URL: %s -> %s',
-              params.endImageUrl,
-              s3Url,
-            );
-            updates.endImageUrl = s3Url;
+        for (const field of ['imageUrl', 'endImageUrl', ...VIDEO_INPUT_URL_FIELDS]) {
+          const value = (params as Record<string, unknown>)[field];
+          if (typeof value !== 'string' || !value) continue;
+          const resolved = await toProviderUrl(value);
+          if (resolved !== value) {
+            log('Converted %s for provider: %s -> %s', field, value, resolved);
+            updates[field] = resolved;
           }
         }
 

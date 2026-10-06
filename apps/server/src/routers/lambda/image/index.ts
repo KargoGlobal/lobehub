@@ -171,35 +171,47 @@ export const imageRouter = router({
         }
       }
 
-      // In development, convert localhost proxy URLs to S3 URLs for async task access
+      // Convert app proxy URLs (/f/{id}) to direct S3 URLs so external providers can
+      // download reference images. The app domain is behind Vercel SSO, so providers
+      // (e.g. fal) cannot fetch proxy URLs in production either.
       let generationParams = params;
-      if (process.env.NODE_ENV === 'development') {
+      {
         const updates: Record<string, unknown> = {};
 
-        // Handle single imageUrl: localhost/f/{id} -> S3 URL
-        if (typeof params.imageUrl === 'string' && params.imageUrl) {
-          const s3Url = await fileService.getFullFileUrl(configForDatabase.imageUrl as string);
-          if (s3Url) {
-            log('Dev: converted proxy URL to S3 URL: %s -> %s', params.imageUrl, s3Url);
-            updates.imageUrl = s3Url;
+        // Resolve a stored file to a provider-fetchable S3 URL; leave external URLs untouched.
+        const toProviderUrl = async (original: string): Promise<string> => {
+          try {
+            // Only rewrite our own file proxy URLs (/f/{fileId}); external URLs pass through.
+            if (!new URL(original, 'http://local').pathname.startsWith('/f/')) return original;
+            const key = await fileService.getKeyFromFullUrl(original);
+            if (!key) return original;
+            return (await fileService.getFullFileUrl(key)) || original;
+          } catch (error) {
+            console.error('Error resolving provider URL for %s: %O', original, error);
+            return original;
           }
+        };
+
+        // Handle single imageUrl: /f/{id} -> S3 URL
+        if (typeof params.imageUrl === 'string' && params.imageUrl) {
+          const s3Url = await toProviderUrl(params.imageUrl);
+          log('Converted imageUrl for provider: %s -> %s', params.imageUrl, s3Url);
+          updates.imageUrl = s3Url;
         }
 
         // Handle multiple imageUrls
         if (Array.isArray(params.imageUrls) && params.imageUrls.length > 0) {
-          const s3Urls = await Promise.all(
-            (configForDatabase.imageUrls as string[]).map((key) => fileService.getFullFileUrl(key)),
-          );
-          log('Dev: converted proxy URLs to S3 URLs: %O', s3Urls);
+          const s3Urls = await Promise.all(params.imageUrls.map((url) => toProviderUrl(url)));
+          log('Converted imageUrls for provider: %O', s3Urls);
           updates.imageUrls = s3Urls;
         }
 
         // Handle the edit tools' extra image-URL fields
         for (const field of IMAGE_EDIT_URL_FIELDS) {
-          const key = (configForDatabase as Record<string, unknown>)[field];
-          if (typeof key !== 'string' || !key || key.startsWith('http')) continue;
-          const s3Url = await fileService.getFullFileUrl(key);
-          if (s3Url) updates[field] = s3Url;
+          const value = (params as Record<string, unknown>)[field];
+          if (typeof value !== 'string' || !value) continue;
+          const resolved = await toProviderUrl(value);
+          if (resolved !== value) updates[field] = resolved;
         }
 
         if (Object.keys(updates).length > 0) {
