@@ -304,7 +304,7 @@
     "@lobehub/analytics": "^1.6.4",
     "@lobehub/charts": "^5.4.0",
     "@lobehub/desktop-ipc-typings": "workspace:*",
-    "@lobehub/editor": "^4.23.1",
+    "@lobehub/editor": "4.27.3",
     "@lobehub/icons": "^5.15.0",
     "@lobehub/market-sdk": "0.39.2",
     "@lobehub/tts": "^5.1.2",
@@ -585,6 +585,7 @@
       "workerd"
     ],
     "overrides": {
+      "@lobehub/editor": "4.27.3",
       "@react-pdf/image": "3.0.4",
       "@types/react": "19.2.13",
       "@vitest/coverage-v8": "3.2.6",
