@@ -14,6 +14,7 @@ import { setNamespace } from '@/utils/storeDebug';
 
 import { type ImageStore } from '../../store';
 import { generationTopicSelectors } from '../generationTopic/selectors';
+import { getImageStatusPollInterval } from './pollInterval';
 import { type GenerationBatchDispatch } from './reducer';
 import { generationBatchReducer } from './reducer';
 
@@ -280,25 +281,7 @@ export class GenerationBatchActionImpl {
             return 0; // Stop polling
           }
 
-          // Dynamically adjust interval based on request count: use exponential backoff algorithm
-          // Base interval 1 second, max interval 30 seconds
-          const baseInterval = 1000;
-          const maxInterval = 30_000;
-          const currentCount = requestCountRef.current;
-
-          // Exponential backoff: double the interval every 5 requests
-          const backoffMultiplier = Math.floor(currentCount / 5);
-          let dynamicInterval = Math.min(
-            baseInterval * Math.pow(2, backoffMultiplier),
-            maxInterval,
-          );
-
-          // If there was a previous error, use a longer interval (multiply by 2)
-          if (isErrorRef.current) {
-            dynamicInterval = Math.min(dynamicInterval * 2, maxInterval);
-          }
-
-          return dynamicInterval;
+          return getImageStatusPollInterval(requestCountRef.current, isErrorRef.current);
         },
         onError: (error) => {
           // Set error state when an error occurs
