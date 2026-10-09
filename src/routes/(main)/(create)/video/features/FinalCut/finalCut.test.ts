@@ -101,6 +101,36 @@ describe('buildFinalCutRequest', () => {
     });
   });
 
+  it('carries a music bed and the CTV loudness flag', () => {
+    expect(
+      buildFinalCutRequest(['a', 'b'], 'https://f/vo.mp3', {
+        ctvLoudness: true,
+        musicUrl: 'https://f/bed.mp3',
+      }),
+    ).toStrictEqual({
+      audioUrl: 'https://f/vo.mp3',
+      clipUrls: ['a', 'b'],
+      ctvLoudness: true,
+      musicUrl: 'https://f/bed.mp3',
+    });
+  });
+
+  it('allows a music bed with no voiceover', () => {
+    const request = buildFinalCutRequest(['a', 'b'], '', {
+      ctvLoudness: true,
+      musicUrl: 'https://f/bed.mp3',
+    });
+    expect(request.audioUrl).toBeUndefined();
+    expect(request.musicUrl).toBe('https://f/bed.mp3');
+    expect(request.ctvLoudness).toBe(true);
+  });
+
+  it('drops the loudness flag when there is no audio to normalize', () => {
+    expect(buildFinalCutRequest(['a', 'b'], null, { ctvLoudness: true }).ctvLoudness).toBe(
+      undefined,
+    );
+  });
+
   it('throws when the clip count is out of range', () => {
     expect(() => buildFinalCutRequest(['a'])).toThrow(/at least/);
     expect(() => buildFinalCutRequest(Array.from({ length: 13 }, (_, i) => `c${i}`))).toThrow(

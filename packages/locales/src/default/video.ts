@@ -104,7 +104,7 @@ export default {
   'feed.untitled': 'Untitled shot',
   'finalCut.audio.clear': 'Remove',
   'finalCut.audio.replace': 'Replace audio',
-  'finalCut.audio.title': 'Audio (optional)',
+  'finalCut.audio.title': 'Voiceover / talk track (optional)',
   'finalCut.audio.upload': 'Upload audio',
   'finalCut.audio.urlPlaceholder': 'Or paste an audio file URL',
   'finalCut.clips.empty': 'No finished clips in this topic yet. Generate a few videos first.',
@@ -253,4 +253,29 @@ export default {
   'tools.unavailable.h3Family':
     'Only available for MiniMax H3 models. Switch models in the toolbar to use this.',
   'tools.unavailable.h3Max': 'Requires the MiniMax H3 Max model to be enabled for your account.',
+  'adVoice.talkTrack.toggle': 'CTV talk track',
+  'adVoice.talkTrack.spot': 'Spot length',
+  'adVoice.talkTrack.beat.hook': 'Hook',
+  'adVoice.talkTrack.beat.problem': 'Problem',
+  'adVoice.talkTrack.beat.product': 'Product',
+  'adVoice.talkTrack.beat.proof': 'Proof',
+  'adVoice.talkTrack.beat.cta': 'Call to action',
+  'adVoice.talkTrack.placeholder.hook':
+    'Open on the line that makes a viewer look up from their phone.',
+  'adVoice.talkTrack.placeholder.problem': 'The moment or frustration the product answers.',
+  'adVoice.talkTrack.placeholder.product': 'What it is and the one thing it does better.',
+  'adVoice.talkTrack.placeholder.proof': 'A stat, award, review or demo beat that backs it up.',
+  'adVoice.talkTrack.placeholder.cta': 'Where to get it, plus the brand name one last time.',
+  'adVoice.talkTrack.words': '{{used}} / {{budget}} words',
+  'adVoice.talkTrack.use': 'Use as script',
+  'adVoice.talkTrack.fit.fits': 'Reads in about {{seconds}}s, fits a {{spot}}s spot',
+  'adVoice.talkTrack.fit.short': 'Reads in about {{seconds}}s, leaves dead air in a {{spot}}s spot',
+  'adVoice.talkTrack.fit.over':
+    'Reads in about {{seconds}}s, {{overBy}}s too long for a {{spot}}s spot. Cut about {{words}} words.',
+  'finalCut.music.title': 'Music bed (optional)',
+  'finalCut.music.description':
+    'Ducked under the voiceover automatically, then faded out at the end.',
+  'finalCut.loudness.title': 'CTV loudness',
+  'finalCut.loudness.description':
+    'Normalize to -24 LKFS with a -2 dBTP true peak (ATSC A/85), the level CTV publishers QC against.',
 } as const;

@@ -1,7 +1,7 @@
 'use client';
 
 import { Flexbox } from '@lobehub/ui';
-import { Button, Checkbox, Input, Text, toast } from '@lobehub/ui/base-ui';
+import { Button, Checkbox, Input, Switch, Text, toast } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
 import { ChevronDown, ChevronUp, Film, Upload } from 'lucide-react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -77,6 +77,95 @@ function extractErrorMessage(error: unknown): string {
   return String(error);
 }
 
+interface AudioSlotProps {
+  description?: string;
+  onChange: (url: string) => void;
+  /** Prefix for data-testid on the url field. */
+  testId: string;
+  title: string;
+  value: string;
+}
+
+/** One audio input: upload a file or paste a URL, with an inline player once set. */
+const AudioSlot = ({ title, description, testId, value, onChange }: AudioSlotProps) => {
+  const { t } = useTranslation('video');
+  const uploadWithProgress = useFileStore((s) => s.uploadWithProgress);
+  const [uploading, setUploading] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // Bumped on every edit so a slow upload can't overwrite a URL pasted or cleared meanwhile.
+  const editSeq = useRef(0);
+
+  const edit = (next: string) => {
+    editSeq.current += 1;
+    onChange(next);
+  };
+
+  const onFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      const seq = ++editSeq.current;
+      setUploading(true);
+      try {
+        const uploaded = await uploadWithProgress({
+          file,
+          onStatusUpdate: () => {},
+          skipCheckFileType: true,
+        });
+        if (!uploaded?.url) throw new Error('Upload failed');
+        if (seq === editSeq.current) onChange(uploaded.url);
+      } catch (error) {
+        toast.error({
+          description: error instanceof Error ? error.message : String(error),
+          duration: 4000,
+        });
+      } finally {
+        setUploading(false);
+      }
+    },
+    [onChange, uploadWithProgress],
+  );
+
+  const url = value.trim();
+
+  return (
+    <Flexbox gap={8}>
+      <Text weight={500}>{title}</Text>
+      {description && <span className={styles.cost}>{description}</span>}
+      <input
+        accept={'audio/*'}
+        ref={inputRef}
+        style={{ display: 'none' }}
+        type={'file'}
+        onChange={onFile}
+      />
+      <Flexbox horizontal gap={8}>
+        <Button
+          icon={<Upload size={14} />}
+          loading={uploading}
+          size={'small'}
+          onClick={() => inputRef.current?.click()}
+        >
+          {url ? t('finalCut.audio.replace') : t('finalCut.audio.upload')}
+        </Button>
+        {url && (
+          <Button size={'small'} type={'text'} onClick={() => edit('')}>
+            {t('finalCut.audio.clear')}
+          </Button>
+        )}
+      </Flexbox>
+      <Input
+        data-testid={`${testId}-url`}
+        placeholder={t('finalCut.audio.urlPlaceholder')}
+        value={value}
+        onChange={(e) => edit(e.target.value)}
+      />
+      {url && <audio controls className={styles.player} src={url} />}
+    </Flexbox>
+  );
+};
+
 interface FinalCutModalProps {
   onClose: () => void;
   open: boolean;
@@ -85,7 +174,6 @@ interface FinalCutModalProps {
 const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
   const { t } = useTranslation('video');
   const { allowed: canCreate } = usePermission('create_content');
-  const uploadWithProgress = useFileStore((s) => s.uploadWithProgress);
   const batches = useVideoStore(generationBatchSelectors.currentGenerationBatches);
 
   const clips = useMemo(() => listSelectableClips(batches), [batches]);
@@ -94,10 +182,9 @@ const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
   const [order, setOrder] = useState<string[]>(() => clips.map((clip) => clip.id));
   const [selected, setSelected] = useState<string[]>(() => clips.map((clip) => clip.id));
 
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioUrlDraft, setAudioUrlDraft] = useState('');
-  const [uploadingAudio, setUploadingAudio] = useState(false);
-  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [voiceUrl, setVoiceUrl] = useState('');
+  const [musicUrl, setMusicUrl] = useState('');
+  const [ctvLoudness, setCtvLoudness] = useState(true);
 
   const [job, setJob] = useState<JobState>({ status: 'idle' });
   const [jobError, setJobError] = useState<string | null>(null);
@@ -117,45 +204,15 @@ const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
     [order, selected, clipsById],
   );
 
-  const uploadAudio = useCallback(
-    async (file: File) => {
-      setUploadingAudio(true);
-      try {
-        const uploaded = await uploadWithProgress({
-          file,
-          onStatusUpdate: () => {},
-          skipCheckFileType: true,
-        });
-        if (!uploaded?.url) throw new Error('Upload failed');
-        setAudioUrl(uploaded.url);
-        setAudioUrlDraft(uploaded.url);
-      } catch (error) {
-        toast.error({
-          description: error instanceof Error ? error.message : String(error),
-          duration: 4000,
-        });
-      } finally {
-        setUploadingAudio(false);
-      }
-    },
-    [uploadWithProgress],
-  );
-
-  const onAudioFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      if (file) await uploadAudio(file);
-    },
-    [uploadAudio],
-  );
-
   const handleExport = useCallback(async () => {
     if (!canCreate || job.status === 'running') return;
 
     let request;
     try {
-      request = buildFinalCutRequest(orderedSelectedUrls, audioUrl ?? audioUrlDraft.trim());
+      request = buildFinalCutRequest(orderedSelectedUrls, voiceUrl.trim(), {
+        ctvLoudness,
+        musicUrl: musicUrl.trim(),
+      });
     } catch (error) {
       toast.error({
         description: error instanceof Error ? error.message : String(error),
@@ -184,7 +241,7 @@ const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
       setJob({ status: 'error' });
       setJobError(extractErrorMessage(error));
     }
-  }, [canCreate, job.status, orderedSelectedUrls, audioUrl, audioUrlDraft, t]);
+  }, [canCreate, job.status, orderedSelectedUrls, voiceUrl, musicUrl, ctvLoudness, t]);
 
   const isRunning = job.status === 'running';
 
@@ -257,49 +314,32 @@ const FinalCutModal = memo<FinalCutModalProps>(({ open, onClose }) => {
           )}
         </Flexbox>
 
-        <Flexbox gap={8}>
-          <Text weight={500}>{t('finalCut.audio.title')}</Text>
-          <input
-            accept={'audio/*'}
-            ref={audioInputRef}
-            style={{ display: 'none' }}
-            type={'file'}
-            onChange={onAudioFile}
+        <AudioSlot
+          testId={'final-cut-audio'}
+          title={t('finalCut.audio.title')}
+          value={voiceUrl}
+          onChange={setVoiceUrl}
+        />
+
+        <AudioSlot
+          description={t('finalCut.music.description')}
+          testId={'final-cut-music'}
+          title={t('finalCut.music.title')}
+          value={musicUrl}
+          onChange={setMusicUrl}
+        />
+
+        <Flexbox horizontal align={'center'} gap={8}>
+          <Switch
+            checked={ctvLoudness}
+            data-testid={'final-cut-ctv-loudness'}
+            size={'small'}
+            onChange={setCtvLoudness}
           />
-          <Flexbox horizontal gap={8}>
-            <Button
-              icon={<Upload size={14} />}
-              loading={uploadingAudio}
-              size={'small'}
-              onClick={() => audioInputRef.current?.click()}
-            >
-              {audioUrl ? t('finalCut.audio.replace') : t('finalCut.audio.upload')}
-            </Button>
-            {audioUrl && (
-              <Button
-                size={'small'}
-                type={'text'}
-                onClick={() => {
-                  setAudioUrl(null);
-                  setAudioUrlDraft('');
-                }}
-              >
-                {t('finalCut.audio.clear')}
-              </Button>
-            )}
+          <Flexbox gap={2}>
+            <Text weight={500}>{t('finalCut.loudness.title')}</Text>
+            <span className={styles.cost}>{t('finalCut.loudness.description')}</span>
           </Flexbox>
-          <Input
-            data-testid={'final-cut-audio-url'}
-            placeholder={t('finalCut.audio.urlPlaceholder')}
-            value={audioUrlDraft}
-            onChange={(e) => {
-              setAudioUrlDraft(e.target.value);
-              setAudioUrl(null);
-            }}
-          />
-          {(audioUrl ?? audioUrlDraft.trim()) && (
-            <audio controls className={styles.player} src={audioUrl ?? audioUrlDraft.trim()} />
-          )}
         </Flexbox>
 
         {job.status === 'success' && (
