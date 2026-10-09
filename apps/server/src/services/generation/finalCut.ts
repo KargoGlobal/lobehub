@@ -63,6 +63,12 @@ export const CTV_LOUDNESS = { integratedLkfs: -24, loudnessRange: 11, truePeakDb
 /** Music bed level before ducking (~-4.4 dB) so it already sits under a voiceover. */
 export const MUSIC_BED_GAIN = 0.6;
 
+/**
+ * Demuxers allowed for user-supplied audio inputs. Keeps ffmpeg from treating an uploaded
+ * ".mp3" that is really an HLS/concat playlist as a playlist and pulling in local files.
+ */
+export const AUDIO_FORMAT_WHITELIST = 'mov,mp4,m4a,3gp,mp3,wav,aac,ogg,flac,matroska,webm';
+
 /** Max fade-out applied to a music bed so the cut doesn't end on a chopped note. */
 const MUSIC_FADE_OUT_SECONDS = 1;
 
@@ -73,11 +79,43 @@ export interface FinalCutAudioOptions {
   musicKey?: string;
 }
 
+/** First-pass `loudnorm` statistics (its print_format=json output). */
+export interface LoudnormMeasurement {
+  input_i: string;
+  input_lra: string;
+  input_thresh: string;
+  input_tp: string;
+  target_offset: string;
+}
+
 export interface AudioMixInput {
   ctvLoudness: boolean;
   durationSeconds: number;
   hasMusic: boolean;
   hasVoice: boolean;
+  /**
+   * With ctvLoudness: omitted → measurement pass (loudnorm prints its stats); given → linear
+   * second pass that applies one constant gain, so ducking and fades keep their shape.
+   */
+  measured?: LoudnormMeasurement;
+}
+
+/** Pulls loudnorm's JSON block out of ffmpeg stderr; null when absent or malformed. */
+export function parseLoudnormMeasurement(stderr: string): LoudnormMeasurement | null {
+  const start = stderr.lastIndexOf('{');
+  const end = stderr.lastIndexOf('}');
+  if (start === -1 || end < start) return null;
+  try {
+    const json = JSON.parse(stderr.slice(start, end + 1));
+    const keys = ['input_i', 'input_lra', 'input_thresh', 'input_tp', 'target_offset'] as const;
+    // Silence measures as "-inf"; linear mode can't use that, so treat it as unmeasured.
+    if (!keys.every((k) => typeof json[k] === 'string' && Number.isFinite(Number(json[k])))) {
+      return null;
+    }
+    return Object.fromEntries(keys.map((k) => [k, json[k]])) as unknown as LoudnormMeasurement;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -92,7 +130,7 @@ export interface AudioMixInput {
  *   upsamples internally).
  */
 export function buildAudioMixFilter(input: AudioMixInput): string {
-  const { ctvLoudness, durationSeconds, hasMusic, hasVoice } = input;
+  const { ctvLoudness, durationSeconds, hasMusic, hasVoice, measured } = input;
   if (!hasVoice && !hasMusic) throw new Error('buildAudioMixFilter needs at least one track');
 
   const format = 'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo';
@@ -102,7 +140,10 @@ export function buildAudioMixFilter(input: AudioMixInput): string {
 
   if (hasVoice && hasMusic) {
     graph.push(
-      `[${voiceIndex}:a]${format},asplit=2[vo][key]`,
+      // The compressor stops emitting once its sidechain input ends, so the key is padded
+      // with silence: otherwise the bed would cut out the moment the voiceover finishes.
+      `[${voiceIndex}:a]${format},asplit=2[vo][k0]`,
+      '[k0]apad[key]',
       `[${musicIndex}:a]${format},volume=${MUSIC_BED_GAIN}[bed]`,
       '[bed][key]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350[duck]',
       '[vo][duck]amix=inputs=2:duration=longest:normalize=0[mix]',
@@ -111,19 +152,30 @@ export function buildAudioMixFilter(input: AudioMixInput): string {
     graph.push(`[${hasVoice ? voiceIndex : musicIndex}:a]${format}[mix]`);
   }
 
-  const tail: string[] = [];
+  // amix emits gappy timestamps once one input ends, which makes afade (pts-based) miss its
+  // window; renumbering samples gives every later filter a clean, continuous timeline.
+  const tail: string[] = ['asetpts=N/SR/TB'];
+  // Fade before loudnorm: the measurement then includes the fade, so the linear second pass
+  // (one constant gain) lands on target even on a 6s spot where the fade is 1/6 of it.
   if (hasMusic && durationSeconds > 0) {
     const fade = Math.min(MUSIC_FADE_OUT_SECONDS, durationSeconds / 4);
     tail.push(`afade=t=out:st=${(durationSeconds - fade).toFixed(3)}:d=${fade.toFixed(3)}`);
   }
   if (ctvLoudness) {
     const { integratedLkfs, loudnessRange, truePeakDbtp } = CTV_LOUDNESS;
+    const target = `I=${integratedLkfs}:TP=${truePeakDbtp}:LRA=${loudnessRange}`;
     tail.push(
-      `loudnorm=I=${integratedLkfs}:TP=${truePeakDbtp}:LRA=${loudnessRange}`,
+      measured
+        ? `loudnorm=${target}:measured_I=${measured.input_i}:measured_TP=${measured.input_tp}:measured_LRA=${measured.input_lra}:measured_thresh=${measured.input_thresh}:offset=${measured.target_offset}:linear=true`
+        : `loudnorm=${target}:print_format=json`,
       'aresample=48000',
     );
+  } else if (hasVoice && hasMusic) {
+    // Summing without normalization can clip a hot voiceover; loudnorm's true-peak limit
+    // covers this when CTV loudness is on.
+    tail.push('alimiter=limit=0.95:level=false');
   }
-  graph.push(`[mix]${tail.length > 0 ? tail.join(',') : 'anull'}[aout]`);
+  graph.push(`[mix]${tail.join(',')}[aout]`);
 
   return graph.join(';');
 }
@@ -256,6 +308,9 @@ export class FinalCutService {
       ]);
 
       const { duration: videoDurationSeconds } = await this.probeVideo(concatPath);
+      if (!(videoDurationSeconds > 0)) {
+        throw new Error('Could not determine the final cut duration');
+      }
 
       // 5. Attach the replacement audio track, if any. `-t <videoDuration>` is what implements
       // the duration rule documented on this method: cap the output at the video's length no
@@ -264,18 +319,48 @@ export class FinalCutService {
       if (needsMix) {
         finalPath = path.join(os.tmpdir(), `lobe-finalcut-final-${nanoid()}.mp4`);
         const audioInputs = [audioPath, musicPath].filter((p): p is string => Boolean(p));
-        await execFileAsync(getFfmpegPath(), [
-          '-y',
+        const inputArgs = [
           '-i',
           concatPath,
-          ...audioInputs.flatMap((p) => ['-i', p]),
+          ...audioInputs.flatMap((p) => ['-format_whitelist', AUDIO_FORMAT_WHITELIST, '-i', p]),
+        ];
+        const mixInput = {
+          ctvLoudness: !!options.ctvLoudness,
+          durationSeconds: videoDurationSeconds,
+          hasMusic: !!musicPath,
+          hasVoice: !!audioPath,
+        };
+
+        // Two-pass loudness: single-pass loudnorm is dynamic and can land several LU off
+        // target on short spots (measured -28 LUFS on a 15s cut), outside A/85's ±2 LU.
+        let measured: LoudnormMeasurement | undefined;
+        if (mixInput.ctvLoudness) {
+          const stderr = await this.runMux([
+            '-y',
+            ...inputArgs,
+            '-filter_complex',
+            buildAudioMixFilter(mixInput),
+            '-map',
+            '[aout]',
+            '-ar',
+            '48000',
+            '-ac',
+            '2',
+            '-t',
+            String(videoDurationSeconds),
+            '-f',
+            'null',
+            '-',
+          ]);
+          measured = parseLoudnormMeasurement(stderr) ?? undefined;
+          if (!measured) log('loudnorm measurement unavailable, falling back to single pass');
+        }
+
+        await this.runMux([
+          '-y',
+          ...inputArgs,
           '-filter_complex',
-          buildAudioMixFilter({
-            ctvLoudness: !!options.ctvLoudness,
-            durationSeconds: videoDurationSeconds,
-            hasMusic: !!musicPath,
-            hasVoice: !!audioPath,
-          }),
+          buildAudioMixFilter({ ...mixInput, measured }),
           '-map',
           '0:v:0',
           '-map',
@@ -296,10 +381,12 @@ export class FinalCutService {
         ]);
       } else if (audioPath) {
         finalPath = path.join(os.tmpdir(), `lobe-finalcut-final-${nanoid()}.mp4`);
-        await execFileAsync(getFfmpegPath(), [
+        await this.runMux([
           '-y',
           '-i',
           concatPath,
+          '-format_whitelist',
+          AUDIO_FORMAT_WHITELIST,
           '-i',
           audioPath,
           '-map',
@@ -353,6 +440,20 @@ export class FinalCutService {
           fs.unlink(p).catch((err) => log('Failed to cleanup temp final-cut file %s: %O', p, err)),
         ),
       );
+    }
+  }
+
+  /** Runs the mux pass, turning ffmpeg's "no audio stream" failure into a readable error. */
+  private async runMux(args: string[]): Promise<string> {
+    try {
+      const { stderr } = await execFileAsync(getFfmpegPath(), args);
+      return String(stderr ?? '');
+    } catch (error: any) {
+      const stderr = String(error?.stderr ?? '');
+      if (/matches no streams|does not contain any stream/.test(stderr)) {
+        throw new Error('The voiceover or music bed file has no audio track', { cause: error });
+      }
+      throw error;
     }
   }
 

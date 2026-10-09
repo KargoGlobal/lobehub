@@ -92,12 +92,20 @@ const AudioSlot = ({ title, description, testId, value, onChange }: AudioSlotPro
   const uploadWithProgress = useFileStore((s) => s.uploadWithProgress);
   const [uploading, setUploading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  // Bumped on every edit so a slow upload can't overwrite a URL pasted or cleared meanwhile.
+  const editSeq = useRef(0);
+
+  const edit = (next: string) => {
+    editSeq.current += 1;
+    onChange(next);
+  };
 
   const onFile = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       e.target.value = '';
       if (!file) return;
+      const seq = ++editSeq.current;
       setUploading(true);
       try {
         const uploaded = await uploadWithProgress({
@@ -106,7 +114,7 @@ const AudioSlot = ({ title, description, testId, value, onChange }: AudioSlotPro
           skipCheckFileType: true,
         });
         if (!uploaded?.url) throw new Error('Upload failed');
-        onChange(uploaded.url);
+        if (seq === editSeq.current) onChange(uploaded.url);
       } catch (error) {
         toast.error({
           description: error instanceof Error ? error.message : String(error),
@@ -142,7 +150,7 @@ const AudioSlot = ({ title, description, testId, value, onChange }: AudioSlotPro
           {url ? t('finalCut.audio.replace') : t('finalCut.audio.upload')}
         </Button>
         {url && (
-          <Button size={'small'} type={'text'} onClick={() => onChange('')}>
+          <Button size={'small'} type={'text'} onClick={() => edit('')}>
             {t('finalCut.audio.clear')}
           </Button>
         )}
@@ -151,7 +159,7 @@ const AudioSlot = ({ title, description, testId, value, onChange }: AudioSlotPro
         data-testid={`${testId}-url`}
         placeholder={t('finalCut.audio.urlPlaceholder')}
         value={value}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => edit(e.target.value)}
       />
       {url && <audio controls className={styles.player} src={url} />}
     </Flexbox>
