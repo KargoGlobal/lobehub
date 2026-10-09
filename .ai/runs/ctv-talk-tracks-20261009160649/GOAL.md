@@ -1,3 +1,0 @@
-# Goal
-
-ctv talk tracks
