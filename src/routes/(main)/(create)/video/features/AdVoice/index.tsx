@@ -11,7 +11,7 @@ import {
   toast,
 } from '@lobehub/ui/base-ui';
 import { createStaticStyles } from 'antd-style';
-import { Mic, Pause, Upload } from 'lucide-react';
+import { Mic, Pause, Tv, Upload } from 'lucide-react';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -25,6 +25,8 @@ import { useServerConfigStore } from '@/store/serverConfig';
 import { useVideoStore } from '@/store/video';
 import { useVideoGenerationConfigParam } from '@/store/video/slices/generationConfig/hooks';
 
+import { DEFAULT_SPOT_LENGTH, fitToSpot, type SpotLength } from './talkTrack';
+import TalkTrackBuilder, { SpotFitLine } from './TalkTrackBuilder';
 import {
   type AvatarMode,
   type AvatarResolution,
@@ -151,6 +153,8 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
   const [voice, setVoice] = useState<string>(engineSpec.voices[0].value);
   const [speed, setSpeed] = useState(1);
   const [speech, setSpeech] = useState<GeneratedAudio | null>(null);
+  const [talkTrackOpen, setTalkTrackOpen] = useState(false);
+  const [spot, setSpot] = useState<SpotLength>(DEFAULT_SPOT_LENGTH);
 
   const trackScriptCursor = useCallback((e: React.SyntheticEvent<HTMLTextAreaElement>) => {
     setScriptCursor(e.currentTarget.selectionStart);
@@ -322,6 +326,25 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
 
         {tab === 'speech' && (
           <Flexbox gap={12}>
+            <Flexbox horizontal justify={'flex-end'}>
+              <Button
+                data-testid={'talk-track-toggle'}
+                icon={<Tv size={12} />}
+                size={'small'}
+                type={talkTrackOpen ? 'primary' : 'default'}
+                onClick={() => setTalkTrackOpen((open) => !open)}
+              >
+                {t('adVoice.talkTrack.toggle')}
+              </Button>
+            </Flexbox>
+            {talkTrackOpen && (
+              <TalkTrackBuilder
+                speed={speed}
+                spot={spot}
+                onSpotChange={setSpot}
+                onUse={setScript}
+              />
+            )}
             <Field label={t('adVoice.speech.script')}>
               <TextArea
                 autoSize={{ maxRows: 10, minRows: 4 }}
@@ -363,6 +386,7 @@ const AdVoiceModal = memo<AdVoiceModalProps>(({ open, onClose }) => {
                   </Button>
                 )}
               </Flexbox>
+              {talkTrackOpen && <SpotFitLine fit={fitToSpot(script, spot, speed)} spot={spot} />}
               <span className={styles.cost}>
                 {t(
                   engine === 'minimax'

@@ -71,22 +71,35 @@ export function validateClipSelection(clipCount: number): FinalCutValidation {
   return { valid: true };
 }
 
+export interface FinalCutAudioMix {
+  /** Normalize to CTV broadcast loudness (-24 LKFS, -2 dBTP) on export. */
+  ctvLoudness?: boolean;
+  /** Music bed; ducked under the voiceover when both are set. */
+  musicUrl?: string | null;
+}
+
 /**
- * Builds the export request from the user's ordered clip selection and optional audio track.
- * Throws (rather than returning a validation result) so callers can drop it straight into the
- * same try/catch + toast.error pattern every other creative tool in this folder uses.
+ * Builds the export request from the user's ordered clip selection, optional voiceover/audio
+ * track and optional music bed. Throws (rather than returning a validation result) so callers
+ * can drop it straight into the same try/catch + toast.error pattern every other creative tool
+ * in this folder uses.
  */
 export function buildFinalCutRequest(
   orderedClipUrls: string[],
   audioUrl?: string | null,
+  mix: FinalCutAudioMix = {},
 ): CreateFinalCutInput {
   const validation = validateClipSelection(orderedClipUrls.length);
   if (!validation.valid) {
     throw new Error(validation.message);
   }
 
+  const hasAudio = !!audioUrl || !!mix.musicUrl;
   return {
     audioUrl: audioUrl || undefined,
     clipUrls: orderedClipUrls,
+    // Loudness only means something when there is a track to normalize.
+    ctvLoudness: hasAudio && mix.ctvLoudness ? true : undefined,
+    musicUrl: mix.musicUrl || undefined,
   };
 }

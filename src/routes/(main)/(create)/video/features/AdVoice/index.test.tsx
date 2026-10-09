@@ -102,6 +102,35 @@ describe('AdVoiceAction', () => {
     expect(script).toHaveValue('Spring sale starts now.<break time="1s" />');
   });
 
+  it('compiles CTV talk-track beats into the script and times it against the spot', async () => {
+    renderAction();
+
+    fireEvent.click(screen.getByRole('button', { name: OPEN_BUTTON }));
+    await screen.findByTestId('advoice-script');
+    expect(screen.queryByTestId('talk-track-builder')).toBeNull();
+
+    fireEvent.click(screen.getByTestId('talk-track-toggle'));
+    await screen.findByTestId('talk-track-builder');
+
+    // Default 30s spot: hook / problem / product / cta
+    expect(screen.getByTestId('talk-track-beat-problem')).toBeInTheDocument();
+    expect(screen.queryByTestId('talk-track-beat-proof')).toBeNull();
+
+    fireEvent.change(screen.getByTestId('talk-track-beat-hook'), {
+      target: { value: 'Cold coffee again?' },
+    });
+    fireEvent.change(screen.getByTestId('talk-track-beat-cta'), {
+      target: { value: 'Find it in stores today.' },
+    });
+    fireEvent.click(screen.getByTestId('talk-track-use'));
+
+    expect(screen.getByTestId('advoice-script')).toHaveValue(
+      'Cold coffee again? <break time="0.5s" /> Find it in stores today.',
+    );
+    // 8 words + 0.5s pause is far under 30s, so the fit line warns about dead air
+    expect(screen.getAllByTestId('talk-track-fit')[0]).toHaveTextContent(/fit\.short/);
+  });
+
   it('shows the ElevenLabs pause-syntax hint by default', async () => {
     renderAction();
 

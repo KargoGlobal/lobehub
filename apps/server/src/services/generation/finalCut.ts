@@ -53,6 +53,81 @@ const DOWNLOAD_TIMEOUT_MS = 5 * 60 * 1000;
 
 const evenize = (n: number) => (n % 2 === 0 ? n : n - 1);
 
+/**
+ * CTV broadcast loudness target. ATSC A/85 (US broadcast, and what most CTV publishers and
+ * SSPs QC against): -24 LKFS integrated, true peak no higher than -2 dBTP. Single-pass
+ * `loudnorm` lands within about ±1 LU of the target, inside A/85's ±2 LU tolerance.
+ */
+export const CTV_LOUDNESS = { integratedLkfs: -24, loudnessRange: 11, truePeakDbtp: -2 };
+
+/** Music bed level before ducking (~-4.4 dB) so it already sits under a voiceover. */
+export const MUSIC_BED_GAIN = 0.6;
+
+/** Max fade-out applied to a music bed so the cut doesn't end on a chopped note. */
+const MUSIC_FADE_OUT_SECONDS = 1;
+
+export interface FinalCutAudioOptions {
+  /** Normalize the exported audio to {@link CTV_LOUDNESS}. */
+  ctvLoudness?: boolean;
+  /** Music bed, ducked under the voiceover (`audioKey`) whenever both are given. */
+  musicKey?: string;
+}
+
+export interface AudioMixInput {
+  ctvLoudness: boolean;
+  durationSeconds: number;
+  hasMusic: boolean;
+  hasVoice: boolean;
+}
+
+/**
+ * Builds the `-filter_complex` graph for the mux pass. Input 0 is the concatenated video;
+ * the voiceover (when present) is input 1 and the music bed the next input after it. The
+ * graph always ends in the `[aout]` label.
+ *
+ * - voice + music: the bed is sidechain-compressed keyed off the voice, so it ducks while
+ *   someone is speaking and comes back up in the gaps, then the two are summed.
+ * - music: faded out over the last second of the video.
+ * - ctvLoudness: normalized to CTV_LOUDNESS, then resampled back to 48 kHz (loudnorm
+ *   upsamples internally).
+ */
+export function buildAudioMixFilter(input: AudioMixInput): string {
+  const { ctvLoudness, durationSeconds, hasMusic, hasVoice } = input;
+  if (!hasVoice && !hasMusic) throw new Error('buildAudioMixFilter needs at least one track');
+
+  const format = 'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo';
+  const voiceIndex = 1;
+  const musicIndex = hasVoice ? 2 : 1;
+  const graph: string[] = [];
+
+  if (hasVoice && hasMusic) {
+    graph.push(
+      `[${voiceIndex}:a]${format},asplit=2[vo][key]`,
+      `[${musicIndex}:a]${format},volume=${MUSIC_BED_GAIN}[bed]`,
+      '[bed][key]sidechaincompress=threshold=0.02:ratio=10:attack=15:release=350[duck]',
+      '[vo][duck]amix=inputs=2:duration=longest:normalize=0[mix]',
+    );
+  } else {
+    graph.push(`[${hasVoice ? voiceIndex : musicIndex}:a]${format}[mix]`);
+  }
+
+  const tail: string[] = [];
+  if (hasMusic && durationSeconds > 0) {
+    const fade = Math.min(MUSIC_FADE_OUT_SECONDS, durationSeconds / 4);
+    tail.push(`afade=t=out:st=${(durationSeconds - fade).toFixed(3)}:d=${fade.toFixed(3)}`);
+  }
+  if (ctvLoudness) {
+    const { integratedLkfs, loudnessRange, truePeakDbtp } = CTV_LOUDNESS;
+    tail.push(
+      `loudnorm=I=${integratedLkfs}:TP=${truePeakDbtp}:LRA=${loudnessRange}`,
+      'aresample=48000',
+    );
+  }
+  graph.push(`[mix]${tail.length > 0 ? tail.join(',') : 'anull'}[aout]`);
+
+  return graph.join(';');
+}
+
 export class FinalCutService {
   private fileService: FileService;
 
@@ -80,9 +155,10 @@ export class FinalCutService {
    * Audio-replace rule (documented once, here, since it governs both the "no audio" and
    * "audio provided" paths): the final cut's audio track is always REPLACED, never mixed with
    * whatever each clip originally carried. Clips concatenated from separate generations rarely
-   * share usable native audio (different models, different takes, often silent) — replacing is
-   * the simpler, more defensible default, and overlay/duck-under-voiceover mixing is out of
-   * scope for this MVP.
+   * share usable native audio (different models, different takes, often silent). The
+   * replacement can itself be a mix: `audioKey` is the voiceover / talk track and
+   * `options.musicKey` a music bed ducked under it (see buildAudioMixFilter), optionally
+   * normalized to CTV broadcast loudness.
    *
    * Duration rule: the OUTPUT duration always equals the concatenated VIDEO duration. A longer
    * audio track is trimmed to the video's length; a shorter one just leaves the tail of the
@@ -90,7 +166,11 @@ export class FinalCutService {
    * rather than `-shortest` (which would do the wrong thing — cut the video short — whenever the
    * audio happens to be the shorter stream).
    */
-  async assembleFinalCut(clipKeys: string[], audioKey?: string): Promise<FinalCutAssembleResult> {
+  async assembleFinalCut(
+    clipKeys: string[],
+    audioKey?: string,
+    options: FinalCutAudioOptions = {},
+  ): Promise<FinalCutAssembleResult> {
     if (clipKeys.length === 0) {
       throw new Error('assembleFinalCut requires at least one clip key');
     }
@@ -102,6 +182,7 @@ export class FinalCutService {
     let listFilePath: string | null = null;
     let concatPath: string | null = null;
     let audioPath: string | null = null;
+    let musicPath: string | null = null;
     let finalPath: string | null = null;
 
     try {
@@ -114,6 +195,10 @@ export class FinalCutService {
       if (audioKey) {
         const url = await this.fileService.getFullFileUrl(audioKey);
         audioPath = await this.downloadToTemp(url, '.mp3');
+      }
+      if (options.musicKey) {
+        const url = await this.fileService.getFullFileUrl(options.musicKey);
+        musicPath = await this.downloadToTemp(url, '.mp3');
       }
 
       // 2. Probe the first clip to pick one common canvas. Clips can come from different
@@ -175,7 +260,41 @@ export class FinalCutService {
       // 5. Attach the replacement audio track, if any. `-t <videoDuration>` is what implements
       // the duration rule documented on this method: cap the output at the video's length no
       // matter which of the two streams is longer.
-      if (audioPath) {
+      const needsMix = !!musicPath || (!!audioPath && !!options.ctvLoudness);
+      if (needsMix) {
+        finalPath = path.join(os.tmpdir(), `lobe-finalcut-final-${nanoid()}.mp4`);
+        const audioInputs = [audioPath, musicPath].filter((p): p is string => Boolean(p));
+        await execFileAsync(getFfmpegPath(), [
+          '-y',
+          '-i',
+          concatPath,
+          ...audioInputs.flatMap((p) => ['-i', p]),
+          '-filter_complex',
+          buildAudioMixFilter({
+            ctvLoudness: !!options.ctvLoudness,
+            durationSeconds: videoDurationSeconds,
+            hasMusic: !!musicPath,
+            hasVoice: !!audioPath,
+          }),
+          '-map',
+          '0:v:0',
+          '-map',
+          '[aout]',
+          '-c:v',
+          'copy',
+          '-c:a',
+          'aac',
+          '-b:a',
+          '192k',
+          '-ar',
+          '48000',
+          '-ac',
+          '2',
+          '-t',
+          String(videoDurationSeconds),
+          finalPath,
+        ]);
+      } else if (audioPath) {
         finalPath = path.join(os.tmpdir(), `lobe-finalcut-final-${nanoid()}.mp4`);
         await execFileAsync(getFfmpegPath(), [
           '-y',
@@ -224,6 +343,7 @@ export class FinalCutService {
         listFilePath,
         concatPath,
         audioPath,
+        musicPath,
         // Don't double-delete: finalPath is only distinct from concatPath when audio was muxed.
         finalPath !== concatPath ? finalPath : null,
       ].filter((p): p is string => Boolean(p));

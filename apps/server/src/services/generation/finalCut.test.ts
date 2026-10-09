@@ -25,7 +25,7 @@ vi.mock('node:util', () => ({
 vi.mock('@/server/services/file');
 vi.mock('debug', () => ({ default: vi.fn(() => vi.fn()) }));
 
-const { FinalCutService } = await import('./finalCut');
+const { buildAudioMixFilter, FinalCutService } = await import('./finalCut');
 
 // A real ffmpeg `-i <file> -hide_banner` probe (no output arg) exits 1 with metadata on
 // stderr — video.ts's getVideoMetadata and finalCut.ts's probeVideo both scrape this shape.
@@ -188,5 +188,101 @@ describe('FinalCutService.assembleFinalCut', () => {
     const service = new FinalCutService({} as any, 'user-1');
     await expect(service.assembleFinalCut([])).rejects.toThrow(/at least one clip/);
     expect(mockExecFileAsync).not.toHaveBeenCalled();
+  });
+
+  it('ducks a music bed under the voiceover and normalizes to CTV loudness in one mux pass', async () => {
+    const service = new FinalCutService({} as any, 'user-1');
+
+    await service.assembleFinalCut(
+      ['generations/videos/clip-a.mp4', 'generations/videos/clip-b.mp4'],
+      'generations/audio/voiceover.mp3',
+      { ctvLoudness: true, musicKey: 'generations/audio/bed.mp3' },
+    );
+
+    // The music bed goes through the same key -> signed URL resolution as every other input.
+    expect(mockGetFullFileUrl).toHaveBeenCalledWith('generations/audio/bed.mp3');
+    expect(mockFetch).toHaveBeenCalledWith(
+      'https://cdn.example.com/generations/audio/bed.mp3',
+      expect.anything(),
+    );
+
+    expect(mockExecFileAsync).toHaveBeenCalledTimes(6);
+    const mux = mockExecFileAsync.mock.calls[5][1] as string[];
+    // video + voiceover + music bed
+    expect(mux.filter((arg) => arg === '-i')).toHaveLength(3);
+    const graph = mux[mux.indexOf('-filter_complex') + 1];
+    expect(graph).toContain('sidechaincompress');
+    expect(graph).toContain('loudnorm=I=-24:TP=-2');
+    expect(mux).toEqual(expect.arrayContaining(['-map', '0:v:0', '-map', '[aout]', '-t', '5']));
+  });
+
+  it('normalizes a lone voiceover through the mix graph when CTV loudness is on', async () => {
+    const service = new FinalCutService({} as any, 'user-1');
+
+    await service.assembleFinalCut(
+      ['generations/videos/clip-a.mp4', 'generations/videos/clip-b.mp4'],
+      'generations/audio/voiceover.mp3',
+      { ctvLoudness: true },
+    );
+
+    const mux = mockExecFileAsync.mock.calls[5][1] as string[];
+    expect(mux.filter((arg) => arg === '-i')).toHaveLength(2);
+    expect(mux[mux.indexOf('-filter_complex') + 1]).toContain('loudnorm');
+  });
+});
+
+describe('buildAudioMixFilter', () => {
+  it('keys the ducking compressor off the voiceover and sums voice + ducked bed', () => {
+    const graph = buildAudioMixFilter({
+      ctvLoudness: false,
+      durationSeconds: 30,
+      hasMusic: true,
+      hasVoice: true,
+    });
+    expect(graph).toContain('[1:a]');
+    expect(graph).toContain('[2:a]');
+    expect(graph).toContain('[bed][key]sidechaincompress');
+    expect(graph).toContain('[vo][duck]amix=inputs=2:duration=longest:normalize=0[mix]');
+    expect(graph).toContain('afade=t=out:st=29.000:d=1.000');
+    expect(graph).not.toContain('loudnorm');
+    expect(graph.endsWith('[aout]')).toBe(true);
+  });
+
+  it('reads a music-only bed from input 1 and shortens the fade on very short cuts', () => {
+    const graph = buildAudioMixFilter({
+      ctvLoudness: true,
+      durationSeconds: 2,
+      hasMusic: true,
+      hasVoice: false,
+    });
+    expect(graph).toContain('[1:a]');
+    expect(graph).not.toContain('[2:a]');
+    expect(graph).not.toContain('sidechaincompress');
+    expect(graph).toContain('afade=t=out:st=1.500:d=0.500');
+    expect(graph).toContain('loudnorm=I=-24:TP=-2:LRA=11,aresample=48000[aout]');
+  });
+
+  it('passes a lone voiceover through untouched when loudness is off', () => {
+    expect(
+      buildAudioMixFilter({
+        ctvLoudness: false,
+        durationSeconds: 15,
+        hasMusic: false,
+        hasVoice: true,
+      }),
+    ).toBe(
+      '[1:a]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo[mix];[mix]anull[aout]',
+    );
+  });
+
+  it('throws without any audio input', () => {
+    expect(() =>
+      buildAudioMixFilter({
+        ctvLoudness: true,
+        durationSeconds: 15,
+        hasMusic: false,
+        hasVoice: false,
+      }),
+    ).toThrow(/at least one track/);
   });
 });

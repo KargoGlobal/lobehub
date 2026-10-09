@@ -46,8 +46,13 @@ export const MIN_FINAL_CUT_CLIPS = 2;
 export const MAX_FINAL_CUT_CLIPS = 12;
 
 const createFinalCutInputSchema = z.object({
+  /** Voiceover / talk track, or any single replacement track. */
   audioUrl: z.string().url().optional(),
   clipUrls: z.array(z.string().url()).min(MIN_FINAL_CUT_CLIPS).max(MAX_FINAL_CUT_CLIPS),
+  /** Normalize the exported audio to CTV broadcast loudness (-24 LKFS, -2 dBTP). */
+  ctvLoudness: z.boolean().optional(),
+  /** Music bed, ducked under `audioUrl` when both are given. */
+  musicUrl: z.string().url().optional(),
 });
 export type CreateFinalCutInput = z.infer<typeof createFinalCutInputSchema>;
 
@@ -104,6 +109,9 @@ export const finalCutRouter = router({
     const audioKey = input.audioUrl
       ? await resolveStoredKeyOrThrow(fileService, input.audioUrl, 'Audio track')
       : undefined;
+    const musicKey = input.musicUrl
+      ? await resolveStoredKeyOrThrow(fileService, input.musicUrl, 'Music bed')
+      : undefined;
 
     const taskId = await asyncTaskModel.create({
       status: AsyncTaskStatus.Pending,
@@ -116,7 +124,10 @@ export const finalCutRouter = router({
 
         const db = await getServerDB();
         const service = new FinalCutService(db, userId, wsId);
-        const result = await service.assembleFinalCut(clipKeys, audioKey);
+        const result = await service.assembleFinalCut(clipKeys, audioKey, {
+          ctvLoudness: input.ctvLoudness,
+          musicKey,
+        });
 
         const metadata: FinalCutExportTaskMetadata = {
           durationSeconds: result.durationSeconds,
